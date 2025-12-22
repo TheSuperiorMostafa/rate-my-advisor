@@ -1,0 +1,318 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Minimal user model for optional accounts (future: user profiles, review history)
+model User {
+  id            String    @id @default(uuid())
+  email         String?   @unique
+  name          String?
+  emailVerified DateTime? // NextAuth email verification
+  role          String    @default("USER") // "USER" | "ADMIN"
+  eduVerified   Boolean   @default(false) // .edu email verification
+  eduEmail      String? // Verified .edu email (hashed)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  reviews          Review[]
+  reviewVotes      ReviewVote[]
+  reviewReports    ReviewReport[]
+  adminActions     AdminAction[]
+  accounts         Account[] // NextAuth
+  sessions         Session[] // NextAuth
+  eduVerifications EduVerification[] // .edu verification codes
+
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+// Universities (e.g., "MIT", "Stanford")
+model University {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique // URL-friendly identifier
+  location  String? // e.g., "Cambridge, MA"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  departments Department[]
+
+  @@index([name]) // Search by name
+  @@index([slug]) // Lookup by slug
+  @@map("universities")
+}
+
+// Departments/Colleges within a University (e.g., "Computer Science", "Engineering")
+model Department {
+  id           String   @id @default(uuid())
+  universityId String
+  name         String
+  slug         String // URL-friendly identifier (unique within university)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  university University @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  advisors   Advisor[]
+
+  @@unique([universityId, slug]) // Slug unique per university
+  @@index([universityId])
+  @@index([name]) // Search by name
+  @@map("departments")
+}
+
+// Academic advisors within a Department
+model Advisor {
+  id           String   @id @default(uuid())
+  departmentId String
+  firstName    String
+  lastName     String
+  slug         String // URL-friendly identifier (unique within department)
+  title        String? // e.g., "Senior Academic Advisor"
+  isActive     Boolean  @default(true) // Soft delete: mark inactive instead of deleting
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  reviews    Review[]
+
+  @@unique([departmentId, slug]) // Slug unique per department
+  @@index([departmentId])
+  @@index([lastName, firstName]) // Search by name
+  @@index([isActive])
+  @@map("advisors")
+}
+
+// Reviews submitted by users (anonymous or verified)
+model Review {
+  id           String    @id @default(uuid())
+  advisorId    String
+  userId       String? // Optional: null for anonymous reviews
+  text         String // Review content (50-2000 chars, validated in app)
+  meetingType  String // "in_person" | "virtual" | "email" | "mixed"
+  timeframe    String // "last_6_months" | "6_12_months" | "1_2_years" | "2_plus_years"
+  status       String    @default("pending") // "pending" | "approved" | "rejected" | "flagged"
+  isVerified   Boolean   @default(false) // .edu email verification badge
+  helpfulCount Int       @default(0) // Cached count of helpful votes
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  reviewedAt   DateTime? // When admin reviewed
+  reviewedBy   String? // Admin user ID who reviewed
+
+  // Relations
+  advisor           Advisor            @relation(fields: [advisorId], references: [id], onDelete: Cascade)
+  user              User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  ratings           ReviewRating[] // Category ratings (6 categories)
+  tags              ReviewTag[] // Many-to-many with Tag
+  votes             ReviewVote[] // Helpful votes
+  reports           ReviewReport[] // User reports
+  emailVerification EmailVerification? // Optional .edu verification
+  adminActions      AdminAction[] // Moderation history
+
+  @@index([advisorId])
+  @@index([status]) // Filter by moderation status
+  @@index([createdAt(sort: Desc)]) // Sort by newest
+  @@index([helpfulCount(sort: Desc)]) // Sort by helpful
+  @@index([userId])
+  @@map("reviews")
+}
+
+// Category ratings for each review (Accuracy, Responsiveness, etc.)
+model ReviewRating {
+  id       String @id @default(uuid())
+  reviewId String
+  category String // "accuracy" | "responsiveness" | "helpfulness" | "availability" | "advocacy" | "clarity"
+  rating   Int // 1-5 stars
+
+  // Relations
+  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  @@unique([reviewId, category]) // One rating per category per review
+  @@index([reviewId])
+  @@index([category, rating]) // Aggregate queries
+  @@map("review_ratings")
+}
+
+// Tags for reviews (e.g., "responsive", "knowledgeable", "hard to reach")
+model Tag {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  slug      String   @unique
+  createdAt DateTime @default(now())
+
+  // Relations
+  reviews ReviewTag[]
+
+  @@index([slug])
+  @@map("tags")
+}
+
+// Junction table: Review <-> Tag (many-to-many)
+model ReviewTag {
+  reviewId String
+  tagId    String
+
+  // Relations
+  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([reviewId, tagId])
+  @@index([reviewId])
+  @@index([tagId])
+  @@map("review_tags")
+}
+
+// Helpful votes on reviews (prevent duplicates via user or fingerprint)
+model ReviewVote {
+  id        String   @id @default(uuid())
+  reviewId  String
+  userId    String? // If user is logged in
+  ipAddress String? // For anonymous users (hashed or anonymized)
+  userAgent String? // Browser fingerprint component
+  createdAt DateTime @default(now())
+
+  // Relations
+  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([reviewId, userId]) // One vote per user per review
+  @@unique([reviewId, ipAddress]) // One vote per IP per review (anonymous)
+  @@index([reviewId])
+  @@index([userId])
+  @@map("review_votes")
+}
+
+// User reports on reviews (for moderation)
+model ReviewReport {
+  id         String    @id @default(uuid())
+  reviewId   String
+  userId     String? // Optional: logged-in user
+  reason     String // "doxxing" | "hate_speech" | "off_topic" | "spam" | "other"
+  details    String? // Additional context
+  ipAddress  String? // For anonymous reports
+  status     String    @default("pending") // "pending" | "resolved" | "dismissed"
+  createdAt  DateTime  @default(now())
+  resolvedAt DateTime?
+  resolvedBy String? // Admin user ID
+
+  // Relations
+  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([reviewId])
+  @@index([status]) // Filter by status
+  @@index([createdAt(sort: Desc)])
+  @@map("review_reports")
+}
+
+// Email verification for .edu badge (optional verification flow)
+model EmailVerification {
+  id                String    @id @default(uuid())
+  reviewId          String    @unique // One verification per review
+  email             String // Hashed or encrypted .edu email
+  verificationToken String    @unique @default(uuid()) // UUID token for email link
+  verifiedAt        DateTime?
+  expiresAt         DateTime // Token expiration (7 days)
+  createdAt         DateTime  @default(now())
+
+  // Relations
+  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  @@index([verificationToken]) // Lookup by token
+  @@index([reviewId])
+  @@index([expiresAt]) // Cleanup expired tokens
+  @@map("email_verifications")
+}
+
+// .edu email verification codes for users
+model EduVerification {
+  id         String    @id @default(uuid())
+  userId     String
+  email      String // .edu email to verify
+  code       String // 6-digit verification code
+  expiresAt  DateTime // Code expiration (15 minutes)
+  verifiedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([code])
+  @@index([expiresAt])
+  @@map("edu_verifications")
+}
+
+// Admin moderation actions (audit trail for approve/reject/flag)
+model AdminAction {
+  id        String   @id @default(uuid())
+  reviewId  String
+  userId    String // Admin user who performed action
+  action    String // "approve" | "reject" | "flag" | "edit"
+  reason    String? // Rejection/flag reason
+  notes     String? // Additional admin notes
+  createdAt DateTime @default(now())
+
+  // Relations
+  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([reviewId])
+  @@index([userId])
+  @@index([createdAt(sort: Desc)]) // Recent actions first
+  @@map("admin_actions")
+}
+
+// NextAuth.js required tables (for admin authentication)
+model Account {
+  id                String  @id @default(uuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
