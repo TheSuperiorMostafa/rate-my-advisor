@@ -46,6 +46,7 @@ export default function SignInPage() {
     setErrorMessage(null);
 
     try {
+      console.log("Attempting admin login...");
       const result = await signIn("credentials", {
         username,
         password,
@@ -53,17 +54,27 @@ export default function SignInPage() {
         callbackUrl: "/admin/moderation",
       });
 
+      console.log("Sign in result:", result);
+
       if (result?.error) {
+        console.error("Login error:", result.error);
         setErrorMessage("Invalid username or password.");
         setIsLoading(false);
-      } else if (result?.ok) {
-        // Success - redirect to admin dashboard
-        window.location.href = "/admin/moderation";
-      } else {
-        // Wait a bit for session to be set, then redirect
+        return;
+      }
+
+      // If successful, redirect
+      if (result?.ok || !result?.error) {
+        console.log("Login successful, redirecting...");
+        // Use router.push with refresh to ensure session is loaded
+        router.push("/admin/moderation");
+        router.refresh();
+        // Also try window.location as fallback
         setTimeout(() => {
-          window.location.href = "/admin/moderation";
-        }, 500);
+          if (window.location.pathname === "/auth/signin") {
+            window.location.href = "/admin/moderation";
+          }
+        }, 1000);
       }
     } catch (err) {
       console.error("Admin login error:", err);
