@@ -10,8 +10,6 @@ const createAdvisorSchema = z.object({
   slug: z.string().min(1).max(200).regex(/^[a-z0-9-]+$/),
   departmentId: z.string().uuid(),
   title: z.string().max(200).optional(),
-  email: z.string().email().optional().or(z.literal("")),
-  bio: z.string().max(5000).optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -61,9 +59,7 @@ export async function POST(request: NextRequest) {
         lastName: data.lastName,
         slug: data.slug,
         departmentId: data.departmentId,
-        title: data.title,
-        email: data.email || null,
-        bio: data.bio,
+        title: data.title || null,
       },
       include: {
         department: {
@@ -111,7 +107,8 @@ export async function GET(request: NextRequest) {
       orderBy: [
         { department: { university: { name: "asc" } } },
         { department: { name: "asc" } },
-        { name: "asc" },
+        { lastName: "asc" },
+        { firstName: "asc" },
       ],
       include: {
         department: {
