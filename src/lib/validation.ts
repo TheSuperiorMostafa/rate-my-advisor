@@ -56,7 +56,7 @@ export const reviewReportSchema = z.object({
 
 // Moderation schemas
 export const moderationQuerySchema = z.object({
-  status: z.enum(["pending", "reported", "flagged", "all"]).default("pending"),
+  status: z.enum(["pending", "approved", "rejected", "reported", "flagged", "all"]).default("pending"),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
