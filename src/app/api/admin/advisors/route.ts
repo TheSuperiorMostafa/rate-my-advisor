@@ -5,7 +5,8 @@ import { z } from "zod";
 
 // Create advisor (admin only)
 const createAdvisorSchema = z.object({
-  name: z.string().min(1).max(200),
+  firstName: z.string().min(1).max(100),
+  lastName: z.string().min(1).max(100),
   slug: z.string().min(1).max(200).regex(/^[a-z0-9-]+$/),
   departmentId: z.string().uuid(),
   title: z.string().max(200).optional(),
@@ -56,7 +57,8 @@ export async function POST(request: NextRequest) {
 
     const advisor = await prisma.advisor.create({
       data: {
-        name: data.name,
+        firstName: data.firstName,
+        lastName: data.lastName,
         slug: data.slug,
         departmentId: data.departmentId,
         title: data.title,

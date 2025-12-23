@@ -279,17 +279,36 @@ export function ManageContent() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Name *</label>
+                <label className="block text-sm font-medium text-gray-700">First Name *</label>
                 <input
                   type="text"
                   required
-                  value={formData.name || ""}
+                  value={formData.firstName || ""}
                   onChange={(e) => {
-                    const name = e.target.value;
+                    const firstName = e.target.value;
+                    const lastName = formData.lastName || "";
                     setFormData({
                       ...formData,
-                      name,
-                      slug: generateSlug(name),
+                      firstName,
+                      slug: generateSlug(`${firstName} ${lastName}`),
+                    });
+                  }}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Last Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={formData.lastName || ""}
+                  onChange={(e) => {
+                    const lastName = e.target.value;
+                    const firstName = formData.firstName || "";
+                    setFormData({
+                      ...formData,
+                      lastName,
+                      slug: generateSlug(`${firstName} ${lastName}`),
                     });
                   }}
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"

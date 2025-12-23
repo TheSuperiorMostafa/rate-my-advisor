@@ -35,9 +35,9 @@ export async function GET(request: NextRequest) {
       const universities = await prisma.university.findMany({
         where: {
           OR: [
-            { name: { contains: searchTerm, mode: "insensitive" } },
-            { slug: { contains: searchTerm, mode: "insensitive" } },
-            { location: { contains: searchTerm, mode: "insensitive" } },
+            { name: { contains: searchTerm, mode: "insensitive" as const } },
+            { slug: { contains: searchTerm, mode: "insensitive" as const } },
+            { location: { contains: searchTerm, mode: "insensitive" as const } },
           ],
         },
         take: 20,
@@ -65,8 +65,8 @@ export async function GET(request: NextRequest) {
       const departments = await prisma.department.findMany({
         where: {
           OR: [
-            { name: { contains: searchTerm, mode: "insensitive" } },
-            { slug: { contains: searchTerm, mode: "insensitive" } },
+            { name: { contains: searchTerm, mode: "insensitive" as const } },
+            { slug: { contains: searchTerm, mode: "insensitive" as const } },
           ],
         },
         take: 20,
@@ -111,10 +111,10 @@ export async function GET(request: NextRequest) {
             { isActive: true },
             {
               OR: [
-                { firstName: { contains: searchTerm, mode: "insensitive" } },
-                { lastName: { contains: searchTerm, mode: "insensitive" } },
-                { slug: { contains: searchTerm, mode: "insensitive" } },
-                { title: { contains: searchTerm, mode: "insensitive" } },
+                { firstName: { contains: searchTerm, mode: "insensitive" as const } },
+                { lastName: { contains: searchTerm, mode: "insensitive" as const } },
+                { slug: { contains: searchTerm, mode: "insensitive" as const } },
+                { title: { contains: searchTerm, mode: "insensitive" as const } },
               ],
             },
           ],
