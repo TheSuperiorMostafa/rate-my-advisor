@@ -50,18 +50,24 @@ export default function SignInPage() {
         username,
         password,
         redirect: false,
+        callbackUrl: "/admin/moderation",
       });
 
       if (result?.error) {
         setErrorMessage("Invalid username or password.");
-      } else {
-        // Redirect to admin dashboard
+        setIsLoading(false);
+      } else if (result?.ok) {
+        // Success - redirect to admin dashboard
         window.location.href = "/admin/moderation";
+      } else {
+        // Wait a bit for session to be set, then redirect
+        setTimeout(() => {
+          window.location.href = "/admin/moderation";
+        }, 500);
       }
     } catch (err) {
       console.error("Admin login error:", err);
       setErrorMessage("Login failed. Please try again.");
-    } finally {
       setIsLoading(false);
     }
   };
