@@ -46,3 +46,4 @@ find "$BACKUP_DIR" -name "backup_*.sql.gz" -mtime +7 -delete
 
 echo "Backup complete!"
 
+

@@ -68,3 +68,4 @@ The git push should trigger a new deployment automatically. If not:
 - **Email Magic Links:** Ready (once Vercel deploys)
 - **OAuth:** Ready (once Vercel deploys)
 
+

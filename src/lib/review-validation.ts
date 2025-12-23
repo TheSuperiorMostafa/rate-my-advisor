@@ -47,3 +47,4 @@ export function checkForContactInfo(text: string): {
   return { hasEmail, hasPhone, message };
 }
 
+

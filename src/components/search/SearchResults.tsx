@@ -247,3 +247,4 @@ export function SearchResults({ query: initialQuery, type: initialType }: Search
   );
 }
 
+

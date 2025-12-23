@@ -28,3 +28,4 @@ export function UniversityContextSync({ university }: UniversityContextSyncProps
   return null; // This component doesn't render anything
 }
 
+

@@ -97,3 +97,4 @@ When you click "Send magic link":
 
 The template is definitely there and will be used when `RESEND_API_KEY` is set!
 
+

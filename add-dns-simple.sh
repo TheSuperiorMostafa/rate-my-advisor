@@ -51,3 +51,4 @@ echo ""
 echo "✅ DNS records added!"
 echo "Wait 5-10 minutes for DNS to propagate."
 
+

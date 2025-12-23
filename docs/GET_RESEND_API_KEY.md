@@ -45,3 +45,4 @@ Since you added DNS records, check if your domain is verified:
 - Use: `onboarding@resend.dev` (temporary, works immediately)
 - You can update later once verification completes
 
+

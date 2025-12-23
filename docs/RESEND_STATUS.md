@@ -59,3 +59,4 @@ Check Resend dashboard: https://resend.com/emails
 
 **Everything is configured correctly - emails will send!**
 
+

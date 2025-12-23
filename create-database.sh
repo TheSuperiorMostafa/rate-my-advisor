@@ -18,3 +18,4 @@ echo "   echo 'YOUR_CONNECTION_STRING' | vercel env add DATABASE_URL production"
 echo ""
 echo "Or I can try to automate it if you provide the connection string..."
 
+

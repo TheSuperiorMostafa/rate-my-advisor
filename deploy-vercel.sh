@@ -29,3 +29,4 @@ echo "3. Run migrations"
 echo ""
 echo "See NEXT_STEPS.md for details"
 
+

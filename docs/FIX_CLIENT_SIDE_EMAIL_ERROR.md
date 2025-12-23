@@ -98,3 +98,4 @@ After fix:
 3. ✅ Loading states work correctly
 4. ✅ Success message shows when email sent
 
+

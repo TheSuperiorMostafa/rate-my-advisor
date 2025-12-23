@@ -55,3 +55,4 @@ vercel logs --follow
 
 Look for the redirect callback logs - they'll show what base URL is being used.
 
+

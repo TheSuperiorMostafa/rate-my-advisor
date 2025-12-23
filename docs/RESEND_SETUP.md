@@ -119,3 +119,4 @@ Resend allows you to customize the magic link email. The default NextAuth templa
 
 Perfect for starting out - 3,000 emails/month is plenty for a new app!
 
+

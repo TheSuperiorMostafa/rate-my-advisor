@@ -23,3 +23,4 @@ echo "✅ Done!"
 echo ""
 echo "Next: Set up database and add DATABASE_URL"
 
+

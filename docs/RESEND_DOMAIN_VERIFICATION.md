@@ -79,3 +79,4 @@ Until domain is verified, you can:
 
 The email template is ready - once domain is verified, everything will work perfectly!
 
+

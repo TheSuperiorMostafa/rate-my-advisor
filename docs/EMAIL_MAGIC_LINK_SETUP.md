@@ -117,3 +117,4 @@ SMTP_PASSWORD="your-resend-api-key"
 - Verify Prisma adapter is working
 - Check Vercel logs for errors
 
+

@@ -156,8 +156,9 @@ export default async function HomePage() {
               <Link
                 key={university.id}
                 href={`/u/${university.id}/${university.slug}`}
+                className="block"
               >
-                <Card variant="interactive" className="h-full">
+                <Card variant="interactive" className="h-full group">
                   <div className="flex items-start justify-between mb-3">
                     <h3 className="text-xl font-semibold text-gray-900 group-hover:text-[#5B2D8B] transition-colors">
                       {university.name}

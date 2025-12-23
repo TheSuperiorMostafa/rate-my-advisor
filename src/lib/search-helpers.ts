@@ -66,3 +66,4 @@ export function shouldShowTopUniversities(query: string): boolean {
   return query.trim().length <= 2;
 }
 
+
