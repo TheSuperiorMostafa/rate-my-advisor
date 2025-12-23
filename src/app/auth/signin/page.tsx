@@ -55,8 +55,8 @@ export default function SignInPage() {
       if (result?.error) {
         setErrorMessage("Invalid username or password.");
       } else {
-        router.push("/admin/moderation");
-        router.refresh();
+        // Redirect to admin dashboard
+        window.location.href = "/admin/moderation";
       }
     } catch (err) {
       console.error("Admin login error:", err);

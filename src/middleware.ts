@@ -49,9 +49,30 @@ export async function middleware(request: NextRequest) {
     if (!isAuthenticated) {
       return NextResponse.redirect(new URL("/auth/signin", request.url));
     }
-    if (token?.role !== "ADMIN") {
+    
+    // Get user from database to check role (for JWT strategy)
+    if (token?.sub) {
+      try {
+        const { prisma } = await import("@/lib/prisma");
+        const user = await prisma.user.findUnique({
+          where: { id: token.sub },
+          select: { role: true },
+        });
+        
+        if (user?.role !== "ADMIN") {
+          return NextResponse.redirect(new URL("/", request.url));
+        }
+      } catch (error) {
+        console.error("Error checking admin role:", error);
+        // Fallback: check token role
+        if (token?.role !== "ADMIN") {
+          return NextResponse.redirect(new URL("/", request.url));
+        }
+      }
+    } else if (token?.role !== "ADMIN") {
       return NextResponse.redirect(new URL("/", request.url));
     }
+    
     return NextResponse.next();
   }
 
