@@ -82,7 +82,15 @@ export const authOptions: NextAuthConfig = {
           try {
             const resend = new Resend(process.env.RESEND_API_KEY);
             
+            // Use onboarding@resend.dev if domain not verified, otherwise use custom domain
             const emailFrom = process.env.EMAIL_FROM || "onboarding@resend.dev";
+            
+            // Log which email address is being used
+            console.log(`📧 Email configuration:`, {
+              from: emailFrom,
+              resendApiKeySet: !!process.env.RESEND_API_KEY,
+              nextAuthUrl: process.env.NEXTAUTH_URL,
+            });
             
             const emailHtml = `
               <!DOCTYPE html>
@@ -125,20 +133,26 @@ export const authOptions: NextAuthConfig = {
               text: emailText,
             });
             
-            // Check for errors in Resend response
+            // Resend API returns { data: { id: string } } on success
+            // or { error: { message: string, name: string } } on error
             if (result.error) {
               console.error("❌ Resend API error:", result.error);
-              throw new Error(`Failed to send email: ${JSON.stringify(result.error)}`);
+              console.error("   Error details:", JSON.stringify(result.error, null, 2));
+              throw new Error(`Failed to send email via Resend: ${result.error.message || JSON.stringify(result.error)}`);
             }
             
-            // Success
+            // Success - Resend returns data with id
             if (result.data?.id) {
-              console.log(`✅ Magic link sent via Resend to ${email} (Email ID: ${result.data.id})`);
-            } else {
               console.log(`✅ Magic link sent via Resend to ${email}`);
+              console.log(`   Email ID: ${result.data.id}`);
+              console.log(`   From: ${emailFrom}`);
+            } else {
+              // This shouldn't happen, but log it
+              console.warn(`⚠️ Resend sent email but no ID returned for ${email}`);
             }
             
             // Return early - email sent successfully via Resend
+            // NextAuth won't try to send again
             return;
           } catch (error) {
             console.error("❌ Resend email error:", error);
