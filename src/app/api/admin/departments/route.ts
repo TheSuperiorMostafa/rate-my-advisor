@@ -8,7 +8,6 @@ const createDepartmentSchema = z.object({
   name: z.string().min(1).max(200),
   slug: z.string().min(1).max(200).regex(/^[a-z0-9-]+$/),
   universityId: z.string().uuid(),
-  description: z.string().max(5000).optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -57,7 +56,6 @@ export async function POST(request: NextRequest) {
         name: data.name,
         slug: data.slug,
         universityId: data.universityId,
-        description: data.description,
       },
       include: {
         university: {
@@ -73,7 +71,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Validation error", details: error.errors },
+        { error: "Validation error", details: error.issues },
         { status: 400 }
       );
     }
