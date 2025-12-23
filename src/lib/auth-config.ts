@@ -21,14 +21,26 @@ export const authOptions: NextAuthConfig = {
       },
       async authorize(credentials) {
         if (!credentials?.username || !credentials?.password) {
+          console.log("❌ Missing credentials");
           return null;
         }
 
         // Check if credentials match admin env vars
-        const adminUsername = process.env.ADMIN_USERNAME || "admin";
-        const adminPassword = process.env.ADMIN_PASSWORD || "";
+        const adminUsername = (process.env.ADMIN_USERNAME || "admin").trim();
+        const adminPassword = (process.env.ADMIN_PASSWORD || "").trim();
+        const providedUsername = String(credentials.username).trim();
+        const providedPassword = String(credentials.password).trim();
 
-        if (credentials.username === adminUsername && credentials.password === adminPassword) {
+        console.log("🔐 Auth attempt:", {
+          providedUsername,
+          adminUsername,
+          usernameMatch: providedUsername === adminUsername,
+          passwordLength: providedPassword.length,
+          adminPasswordLength: adminPassword.length,
+          passwordMatch: providedPassword === adminPassword,
+        });
+
+        if (providedUsername === adminUsername && providedPassword === adminPassword) {
           // Find or create admin user
           let user = await prisma.user.findUnique({
             where: { email: `${adminUsername}@admin.local` },
