@@ -2,20 +2,29 @@ import { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { ModerationDashboard } from "@/components/moderation/ModerationDashboard";
+import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = {
   title: "Moderation Dashboard - Rate My Advisor",
   description: "Admin moderation dashboard for reviewing and managing user reviews",
 };
 
+// Allowed emails for moderation (temporary until OAuth is fixed)
+const ALLOWED_MODERATOR_EMAILS = ["superiormostafa@gmail.com"];
+
 export default async function ModerationPage() {
   const session = await getSession();
 
-  if (!session?.user) {
+  // Check if user is signed in
+  if (!session?.user?.email) {
     redirect("/auth/signin");
   }
 
-  if (session.user.role !== "ADMIN") {
+  // Allow specific emails OR admin role
+  const isAllowedEmail = ALLOWED_MODERATOR_EMAILS.includes(session.user.email);
+  const isAdmin = session.user.role === "ADMIN";
+
+  if (!isAllowedEmail && !isAdmin) {
     redirect("/");
   }
 
