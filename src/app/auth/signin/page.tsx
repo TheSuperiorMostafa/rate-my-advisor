@@ -77,16 +77,30 @@ export default function SignInPage() {
       });
 
       if (result?.error) {
-        setErrorMessage(result.error);
+        console.error("Email sign-in error:", result.error);
+        setErrorMessage(
+          result.error === "EmailSignin" 
+            ? "Failed to send magic link. Please try again."
+            : result.error
+        );
+        setIsLoading(false);
+      } else if (result?.ok) {
+        setEmailSent(true);
         setIsLoading(false);
       } else {
+        // No error but also no success - assume it worked
         setEmailSent(true);
         setIsLoading(false);
       }
     } catch (err) {
       console.error("Email sign in error:", err);
-      setErrorMessage("Failed to send magic link. Please try again.");
+      setErrorMessage(
+        err instanceof Error 
+          ? err.message 
+          : "Failed to send magic link. Please try again."
+      );
       setIsLoading(false);
+      setAuthMethod("google");
     }
   };
 

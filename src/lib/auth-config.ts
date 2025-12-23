@@ -156,12 +156,21 @@ export const authOptions: NextAuthConfig = {
             return;
           } catch (error) {
             console.error("❌ Resend email error:", error);
-            // Don't throw - let NextAuth fall back to SMTP if configured
-            // But log the error so we know what happened
+            // Log detailed error for debugging
+            if (error instanceof Error) {
+              console.error("   Error message:", error.message);
+              console.error("   Error stack:", error.stack);
+            }
+            
+            // If SMTP is configured, let NextAuth try SMTP
             if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD) {
               console.log("⚠️ Resend failed, falling back to SMTP");
+              // Don't return - let NextAuth handle SMTP
             } else {
-              throw error; // No fallback available, throw error
+              // No fallback - throw a user-friendly error
+              const errorMessage = error instanceof Error ? error.message : "Failed to send email";
+              console.error("❌ No SMTP fallback configured. Email sending failed.");
+              throw new Error(`Email service unavailable: ${errorMessage}. Please contact support.`);
             }
           }
         }

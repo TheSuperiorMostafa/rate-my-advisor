@@ -74,6 +74,7 @@ export function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthModalProp
 
     try {
       setIsLoading(true);
+      setAuthMethod("email");
       setErrorMessage(null);
       
       const result = await signIn("email", {
@@ -83,10 +84,19 @@ export function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthModalProp
       });
 
       if (result?.error) {
-        setErrorMessage(result.error);
+        console.error("Email sign-in error:", result.error);
+        setErrorMessage(
+          result.error === "EmailSignin" 
+            ? "Failed to send magic link. Please try again."
+            : result.error
+        );
+        setIsLoading(false);
+      } else if (result?.ok) {
+        // Email sent successfully
+        setEmailSent(true);
         setIsLoading(false);
       } else {
-        // Email sent successfully
+        // No error but also no success - assume it worked
         setEmailSent(true);
         setIsLoading(false);
       }
@@ -98,6 +108,7 @@ export function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthModalProp
           : "Failed to send magic link. Please try again."
       );
       setIsLoading(false);
+      // Reset auth method on error
     }
   };
 
