@@ -1,8 +1,12 @@
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { SearchBar } from "@/components/ui/SearchBar";
+import { AutocompleteSearch } from "@/components/search/AutocompleteSearch";
+import { Card } from "@/components/ui/Card";
+import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
+import { GraduationCap } from "lucide-react";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { UniversityContextSync } from "@/components/nav/UniversityContextSync";
 
 interface PageProps {
   params: Promise<{
@@ -76,65 +80,104 @@ export default async function UniversityPage({ params, searchParams }: PageProps
       )
     : university.departments;
 
+  const breadcrumbs = [
+    { label: "Home", href: "/" },
+    { label: university.name },
+  ];
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="bg-white border-b">
-        <div className="max-w-6xl mx-auto px-4 py-8">
-          <nav className="text-sm text-gray-500 mb-4">
-            <a href="/" className="hover:text-gray-700">
-              Home
-            </a>
-            <span className="mx-2">/</span>
-            <span className="text-gray-900">{university.name}</span>
-          </nav>
+      {/* Sync university context for nav */}
+      <UniversityContextSync
+        university={{
+          id: university.id,
+          name: university.name,
+          slug: university.slug,
+        }}
+      />
+      
+      {/* Header Section */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="container-custom py-8 md:py-12">
+          <Breadcrumbs items={breadcrumbs} className="mb-6" />
+          
+          <div className="flex items-start gap-4 mb-6">
+            <div className="p-3 bg-[#F5F0FF] rounded-xl">
+              <GraduationCap className="w-8 h-8 text-[#5B2D8B]" />
+            </div>
+            <div className="flex-1">
+              <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
+                {university.name}
+              </h1>
+              {university.location && (
+                <p className="text-lg text-gray-600">{university.location}</p>
+              )}
+            </div>
+          </div>
 
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">{university.name}</h1>
-          {university.location && (
-            <p className="text-lg text-gray-600 mb-6">{university.location}</p>
-          )}
-
-          <div className="mb-6">
-            <SearchBar
-              placeholder="Search departments..."
+          <div className="max-w-2xl">
+            <AutocompleteSearch
+              placeholder={`Find an advisor or department at ${university.name}...`}
               initialValue={searchQuery}
+              autoFocus
+              context={{
+                universityId: university.id,
+                universityName: university.name,
+              }}
             />
           </div>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 py-8">
-        <h2 className="text-2xl font-bold text-gray-900 mb-6">
-          Departments ({departments.length})
-        </h2>
+      {/* Departments Section */}
+      <div className="container-custom py-8 md:py-12">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl md:text-3xl font-bold text-gray-900">
+            Departments
+            {departments.length > 0 && (
+              <span className="text-gray-500 font-normal ml-2">
+                ({departments.length})
+              </span>
+            )}
+          </h2>
+        </div>
 
         {departments.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {departments.map((department: any) => (
               <Link
                 key={department.id}
                 href={`/d/${department.id}/${department.slug}`}
-                className="block p-6 bg-white border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-md transition-all"
               >
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  {department.name}
-                </h3>
-                <p className="text-sm text-gray-500">
-                  {department._count?.advisors || 0} {department._count?.advisors === 1 ? "advisor" : "advisors"}
-                </p>
+                <Card variant="interactive" className="h-full">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2 group-hover:text-[#5B2D8B] transition-colors">
+                    {department.name}
+                  </h3>
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <GraduationCap className="w-4 h-4" />
+                    <span>
+                      {department._count?.advisors || 0}{" "}
+                      {department._count?.advisors === 1 ? "advisor" : "advisors"}
+                    </span>
+                  </div>
+                </Card>
               </Link>
             ))}
           </div>
         ) : (
-          <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
-            <p className="text-gray-500">
+          <Card className="text-center py-12">
+            <GraduationCap className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              {searchQuery ? `No departments found` : "No departments yet"}
+            </h3>
+            <p className="text-gray-600">
               {searchQuery
-                ? `No departments found matching "${searchQuery}"`
-                : "No departments found"}
+                ? `Try a different search term`
+                : "Departments will appear here once added"}
             </p>
-          </div>
+          </Card>
         )}
       </div>
     </div>
   );
 }
-

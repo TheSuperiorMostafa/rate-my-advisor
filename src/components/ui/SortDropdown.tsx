@@ -1,40 +1,49 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
+import { Select } from "./Select";
+import { ArrowUpDown } from "lucide-react";
 
 interface SortDropdownProps {
   currentSort: string;
-  advisorId: string;
-  slug: string;
+  options: Array<{ value: string; label: string }>;
+  paramName?: string;
+  className?: string;
 }
 
-export function SortDropdown({ currentSort, advisorId, slug }: SortDropdownProps) {
+export function SortDropdown({
+  currentSort,
+  options,
+  paramName = "sort",
+  className,
+}: SortDropdownProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const handleSortChange = (newSort: string) => {
+  const handleChange = (value: string) => {
     const params = new URLSearchParams(searchParams.toString());
-    params.set("sort", newSort);
-    router.push(`/a/${advisorId}/${slug}?${params.toString()}`);
+    if (value && value !== "newest") {
+      params.set(paramName, value);
+    } else {
+      params.delete(paramName);
+    }
+    router.push(`?${params.toString()}`, { scroll: false });
   };
 
   return (
-    <div className="flex items-center gap-2">
-      <label htmlFor="sort-select" className="text-sm text-gray-600">
-        Sort by:
-      </label>
-      <select
-        id="sort-select"
+    <div className={className}>
+      <Select
         value={currentSort}
-        onChange={(e) => handleSortChange(e.target.value)}
-        className="px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+        onChange={(e) => handleChange(e.target.value)}
+        className="min-w-[180px]"
+        aria-label="Sort reviews"
       >
-        <option value="newest">Most Recent</option>
-        <option value="highest">Highest Rated</option>
-        <option value="lowest">Lowest Rated</option>
-        <option value="helpful">Most Helpful</option>
-      </select>
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </Select>
     </div>
   );
 }
-

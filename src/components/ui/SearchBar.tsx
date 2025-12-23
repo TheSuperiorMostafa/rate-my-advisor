@@ -1,17 +1,47 @@
 "use client";
 
-import { useState, FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useState, FormEvent, useEffect, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Search, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface SearchBarProps {
   placeholder?: string;
   initialValue?: string;
   onSearch?: (query: string) => void;
+  className?: string;
+  size?: "sm" | "md" | "lg";
+  autoFocus?: boolean;
 }
 
-export function SearchBar({ placeholder = "Search...", initialValue = "", onSearch }: SearchBarProps) {
+export function SearchBar({ 
+  placeholder = "Search...", 
+  initialValue = "", 
+  onSearch,
+  className,
+  size = "md",
+  autoFocus = false,
+}: SearchBarProps) {
   const [query, setQuery] = useState(initialValue);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const debounceTimer = useRef<NodeJS.Timeout>();
+
+  // Sync with URL params
+  useEffect(() => {
+    const urlQuery = searchParams.get("q") || "";
+    if (urlQuery !== query) {
+      setQuery(urlQuery);
+    }
+  }, [searchParams]);
+
+  // Auto focus
+  useEffect(() => {
+    if (autoFocus && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [autoFocus]);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -22,33 +52,80 @@ export function SearchBar({ placeholder = "Search...", initialValue = "", onSear
     }
   };
 
+  const handleChange = (value: string) => {
+    setQuery(value);
+    
+    // Debounce URL updates for instant search feel
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current);
+    }
+
+    debounceTimer.current = setTimeout(() => {
+      if (!onSearch && value) {
+        const params = new URLSearchParams(searchParams.toString());
+        if (value) {
+          params.set("q", value);
+        } else {
+          params.delete("q");
+        }
+        router.push(`?${params.toString()}`, { scroll: false });
+      }
+    }, 300);
+  };
+
+  const clearSearch = () => {
+    setQuery("");
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+    if (!onSearch) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("q");
+      router.push(`?${params.toString()}`, { scroll: false });
+    }
+  };
+
+  const sizes = {
+    sm: "py-2 text-sm",
+    md: "py-3 text-base",
+    lg: "py-4 text-lg",
+  };
+
   return (
-    <form onSubmit={handleSubmit} className="w-full">
+    <form onSubmit={handleSubmit} className={cn("w-full", className)}>
       <div className="relative">
+        <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none">
+          <Search className="w-5 h-5 text-gray-400" aria-hidden="true" />
+        </div>
         <input
+          ref={inputRef}
           type="text"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => handleChange(e.target.value)}
           placeholder={placeholder}
-          className="w-full px-4 py-3 pl-12 pr-4 text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className={cn(
+            "w-full border border-gray-300 rounded-xl",
+            "focus:outline-none focus:ring-2 focus:ring-[#A78BFA] focus:border-transparent",
+            "placeholder:text-gray-400",
+            // Left padding: 3rem (48px) to accommodate icon (20px) + spacing (28px)
+            // Right padding: extra space when clear button is visible
+            query ? "pr-12" : "pr-4",
+            "pl-12", // 48px left padding ensures text never overlaps icon
+            sizes[size]
+          )}
+          aria-label={placeholder}
         />
-        <div className="absolute inset-y-0 left-0 flex items-center pl-4">
-          <svg
-            className="w-5 h-5 text-gray-400"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+        {query && (
+          <button
+            type="button"
+            onClick={clearSearch}
+            className="absolute inset-y-0 right-0 flex items-center pr-4 text-gray-400 hover:text-gray-600 transition-colors"
+            aria-label="Clear search"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-            />
-          </svg>
-        </div>
+            <X className="w-5 h-5" />
+          </button>
+        )}
       </div>
     </form>
   );
 }
-

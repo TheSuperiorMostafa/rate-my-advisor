@@ -44,7 +44,7 @@ export default function DMCAPage() {
             <div className="bg-gray-100 p-4 rounded-lg">
               <p className="text-gray-700 font-semibold mb-2">DMCA Agent:</p>
               <ul className="list-none text-gray-700 space-y-1">
-                <li>Email: <a href="mailto:dmca@ratemyadvisor.com" className="text-blue-600 hover:underline">dmca@ratemyadvisor.com</a></li>
+                <li>Email: <a href="mailto:dmca@ratemyadvisor.com" className="text-[#5B2D8B] hover:underline">dmca@ratemyadvisor.com</a></li>
                 <li>Subject Line: "DMCA Takedown Request"</li>
                 <li>Response Time: 48 hours</li>
               </ul>
@@ -101,7 +101,7 @@ export default function DMCAPage() {
             <div className="bg-gray-100 p-4 rounded-lg mt-2">
               <p className="text-gray-700">
                 <strong>DMCA Agent</strong><br />
-                Email: <a href="mailto:dmca@ratemyadvisor.com" className="text-blue-600 hover:underline">dmca@ratemyadvisor.com</a><br />
+                Email: <a href="mailto:dmca@ratemyadvisor.com" className="text-[#5B2D8B] hover:underline">dmca@ratemyadvisor.com</a><br />
                 Subject: "DMCA Takedown Request" or "DMCA Counter-Notification"
               </p>
             </div>
@@ -109,7 +109,7 @@ export default function DMCAPage() {
         </div>
 
         <div className="mt-8 pt-8 border-t border-gray-200">
-          <Link href="/" className="text-blue-600 hover:underline">
+          <Link href="/" className="text-[#5B2D8B] hover:underline">
             ← Back to Home
           </Link>
         </div>

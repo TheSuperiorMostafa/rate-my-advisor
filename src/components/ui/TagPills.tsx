@@ -1,3 +1,6 @@
+import { Badge } from "./Badge";
+import { cn } from "@/lib/utils";
+
 interface Tag {
   id: string;
   name: string;
@@ -7,22 +10,19 @@ interface Tag {
 interface TagPillsProps {
   tags: Tag[];
   className?: string;
+  size?: "sm" | "md";
 }
 
-export function TagPills({ tags, className = "" }: TagPillsProps) {
+export function TagPills({ tags, className, size = "md" }: TagPillsProps) {
   if (tags.length === 0) return null;
 
   return (
-    <div className={`flex flex-wrap gap-2 ${className}`}>
+    <div className={cn("flex flex-wrap gap-2", className)}>
       {tags.map((tag) => (
-        <span
-          key={tag.id}
-          className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
-        >
+        <Badge key={tag.id} variant="info" size={size}>
           {tag.name}
-        </span>
+        </Badge>
       ))}
     </div>
   );
 }
-

@@ -107,7 +107,7 @@ export default function PrivacyPage() {
               <li>Withdraw consent for data processing</li>
             </ul>
             <p className="text-gray-700 mt-4">
-              To exercise these rights, contact us at: <a href="mailto:privacy@ratemyadvisor.com" className="text-blue-600 hover:underline">privacy@ratemyadvisor.com</a>
+              To exercise these rights, contact us at: <a href="mailto:privacy@ratemyadvisor.com" className="text-[#5B2D8B] hover:underline">privacy@ratemyadvisor.com</a>
             </p>
           </section>
 
@@ -131,14 +131,14 @@ export default function PrivacyPage() {
               If you have questions about this Privacy Policy, please contact us:
             </p>
             <ul className="list-none text-gray-700 mt-2 space-y-1">
-              <li>Email: <a href="mailto:privacy@ratemyadvisor.com" className="text-blue-600 hover:underline">privacy@ratemyadvisor.com</a></li>
-              <li>Data Requests: <a href="mailto:data@ratemyadvisor.com" className="text-blue-600 hover:underline">data@ratemyadvisor.com</a></li>
+              <li>Email: <a href="mailto:privacy@ratemyadvisor.com" className="text-[#5B2D8B] hover:underline">privacy@ratemyadvisor.com</a></li>
+              <li>Data Requests: <a href="mailto:data@ratemyadvisor.com" className="text-[#5B2D8B] hover:underline">data@ratemyadvisor.com</a></li>
             </ul>
           </section>
         </div>
 
         <div className="mt-8 pt-8 border-t border-gray-200">
-          <Link href="/" className="text-blue-600 hover:underline">
+          <Link href="/" className="text-[#5B2D8B] hover:underline">
             ← Back to Home
           </Link>
         </div>

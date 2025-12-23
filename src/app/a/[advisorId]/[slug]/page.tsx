@@ -2,12 +2,16 @@ import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { RatingSummary } from "@/components/rating/RatingSummary";
 import { ReviewCard } from "@/components/review/ReviewCard";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { SortSelect } from "@/components/ui/SortSelect";
-import Link from "next/link";
+import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { Button } from "@/components/ui/button";
+import { SortDropdown } from "@/components/ui/SortDropdown";
+import { Card } from "@/components/ui/Card";
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getAdvisorRatings } from "@/lib/ratings";
+import { User, GraduationCap, MapPin, PenSquare, MessageSquare } from "lucide-react";
+import { StarRating } from "@/components/ui/StarRating";
+import { cn } from "@/lib/utils";
 
 interface PageProps {
   params: Promise<{
@@ -106,7 +110,7 @@ async function getReviews(advisorId: string, sort: string = "newest") {
         timeframe: review.timeframe,
         isVerified: review.isVerified,
         helpfulCount: review.helpfulCount,
-        createdAt: review.createdAt,
+        createdAt: review.createdAt.toISOString(),
         ratings: review.ratings.reduce(
           (acc, r) => ({ ...acc, [r.category]: r.rating }),
           {} as Record<string, number>
@@ -167,7 +171,7 @@ export default async function AdvisorPage({ params, searchParams }: PageProps) {
   const reviews = reviewsData.reviews || [];
 
   const name = `${advisor.firstName} ${advisor.lastName}`;
-  const breadcrumbPath = [
+  const breadcrumbs = [
     { label: "Home", href: "/" },
     {
       label: advisor.department.university.name,
@@ -180,112 +184,240 @@ export default async function AdvisorPage({ params, searchParams }: PageProps) {
     { label: name },
   ];
 
+  const sortOptions = [
+    { value: "newest", label: "Newest First" },
+    { value: "helpful", label: "Most Helpful" },
+    { value: "highest", label: "Highest Rated" },
+    { value: "lowest", label: "Lowest Rated" },
+  ];
+
+  // Calculate key metrics
+  const wouldMeetAgain = ratings.advocacy >= 4.0 ? Math.round((ratings.advocacy / 5) * 100) : 0;
+  const avgResponsiveness = ratings.responsiveness;
+  const avgAccuracy = ratings.accuracy;
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="bg-white border-b">
-        <div className="max-w-6xl mx-auto px-4 py-8">
-          <nav className="text-sm text-gray-500 mb-4">
-            {breadcrumbPath.map((item, index) => (
-              <span key={index}>
-                {index > 0 && <span className="mx-2">/</span>}
-                {item.href ? (
-                  <Link href={item.href} className="hover:text-gray-700">
-                    {item.label}
-                  </Link>
-                ) : (
-                  <span className="text-gray-900">{item.label}</span>
-                )}
-              </span>
-            ))}
-          </nav>
+      {/* Header Section */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="container-custom py-6 md:py-8">
+          <Breadcrumbs items={breadcrumbs} className="mb-6" />
 
-          <div className="flex items-start justify-between mb-6">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">{name}</h1>
-              {advisor.title && (
-                <p className="text-lg text-gray-600 mb-2">{advisor.title}</p>
-              )}
-              <p className="text-sm text-gray-500">
-                {advisor.department.name} • {advisor.department.university.name}
+          {/* Hero Block: Rating + Identity */}
+          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
+            <div className="flex items-start gap-4 flex-1">
+              <div className="p-3 bg-[#F5F0FF] rounded-xl flex-shrink-0">
+                <User className="w-8 h-8 text-[#5B2D8B]" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
+                  {name}
+                </h1>
+                {advisor.title && (
+                  <p className="text-lg text-gray-600 mb-3">{advisor.title}</p>
+                )}
+                <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
+                  <div className="flex items-center gap-1.5">
+                    <GraduationCap className="w-4 h-4" />
+                    <span>{advisor.department.name}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <MapPin className="w-4 h-4" />
+                    <span>{advisor.department.university.name}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Large Rating Display */}
+            <div className="flex flex-col items-center md:items-end gap-2">
+              <div className="flex items-baseline gap-2">
+                <span className={cn(
+                  "text-5xl md:text-6xl font-bold",
+                  ratings.overall >= 4.5 ? "text-[#16A34A]" :
+                  ratings.overall >= 4.0 ? "text-[#5B2D8B]" :
+                  ratings.overall >= 3.5 ? "text-[#F59E0B]" :
+                  "text-[#DC2626]"
+                )}>
+                  {ratings.overall.toFixed(1)}
+                </span>
+                <span className="text-2xl text-gray-400 font-medium">/ 5.0</span>
+              </div>
+              <StarRating rating={ratings.overall} size="xl" />
+              <p className="text-sm text-gray-600 font-medium">
+                {ratings.totalReviews} {ratings.totalReviews === 1 ? "review" : "reviews"}
               </p>
             </div>
-            <Link href={`/a/${advisorId}/${advisor.slug}/review`}>
-              <Button>Write a Review</Button>
-            </Link>
           </div>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 py-8">
-        <div className="mb-8">
-          <RatingSummary
-            overall={ratings.overall}
-            accuracy={ratings.accuracy}
-            responsiveness={ratings.responsiveness}
-            helpfulness={ratings.helpfulness}
-            availability={ratings.availability}
-            advocacy={ratings.advocacy}
-            clarity={ratings.clarity}
-            totalReviews={ratings.totalReviews}
-            ratingDistribution={ratings.ratingDistribution}
-          />
-        </div>
+      {/* Content Section - Full Width Grid */}
+      <div className="container-custom py-8 md:py-12">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          {/* Left Column: Summary + Distribution + Categories (8 cols) */}
+          <div className="lg:col-span-8 space-y-8">
+            {/* Key Metrics */}
+            {ratings.totalReviews > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <Card variant="elevated" className="p-6">
+                  <div className="text-sm font-medium text-gray-600 mb-2">Would Meet Again</div>
+                  <div className="text-3xl font-bold text-[#5B2D8B] mb-1">{wouldMeetAgain}%</div>
+                  <div className="text-xs text-gray-500">Based on advocacy rating</div>
+                </Card>
+                <Card variant="elevated" className="p-6">
+                  <div className="text-sm font-medium text-gray-600 mb-2">Avg Responsiveness</div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-3xl font-bold text-[#5B2D8B]">{avgResponsiveness.toFixed(1)}</span>
+                    <StarRating rating={avgResponsiveness} size="sm" />
+                  </div>
+                  <div className="text-xs text-gray-500">Out of 5.0</div>
+                </Card>
+                <Card variant="elevated" className="p-6">
+                  <div className="text-sm font-medium text-gray-600 mb-2">Avg Accuracy</div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-3xl font-bold text-[#5B2D8B]">{avgAccuracy.toFixed(1)}</span>
+                    <StarRating rating={avgAccuracy} size="sm" />
+                  </div>
+                  <div className="text-xs text-gray-500">Out of 5.0</div>
+                </Card>
+              </div>
+            )}
 
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-bold text-gray-900">
-              Reviews ({ratings.totalReviews})
-            </h2>
-            <SortSelect currentSort={sortBy} advisorId={advisorId} slug={advisor.slug} />
-          </div>
-        </div>
+            {/* Rating Summary Components */}
+            <RatingSummary
+              overall={ratings.overall}
+              accuracy={ratings.accuracy}
+              responsiveness={ratings.responsiveness}
+              helpfulness={ratings.helpfulness}
+              availability={ratings.availability}
+              advocacy={ratings.advocacy}
+              clarity={ratings.clarity}
+              totalReviews={ratings.totalReviews}
+              ratingDistribution={ratings.ratingDistribution}
+            />
 
-        {reviews.length > 0 ? (
-          <div className="space-y-6">
-            {reviews.map((review: any) => (
-              <ReviewCard
-                key={review.id}
-                id={review.id}
-                text={review.text}
-                meetingType={review.meetingType}
-                timeframe={review.timeframe}
-                isVerified={review.isVerified}
-                helpfulCount={review.helpfulCount}
-                createdAt={review.createdAt}
-                ratings={review.ratings}
-                tags={review.tags}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
-            <svg
-              className="mx-auto h-12 w-12 text-gray-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-              />
-            </svg>
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No reviews yet</h3>
-            <p className="mt-1 text-sm text-gray-500">Be the first to review this advisor</p>
-            <div className="mt-6">
-              <Link
-                href={`/a/${advisorId}/${advisor.slug}/review`}
-                className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
-              >
-                Write a Review
-              </Link>
+            {/* Reviews Section */}
+            <div>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+                <h2 className="text-2xl md:text-3xl font-bold text-gray-900">
+                  Reviews
+                  {ratings.totalReviews > 0 && (
+                    <span className="text-gray-500 font-normal ml-2">
+                      ({ratings.totalReviews})
+                    </span>
+                  )}
+                </h2>
+                {reviews.length > 0 && (
+                  <SortDropdown
+                    currentSort={sortBy}
+                    options={sortOptions}
+                  />
+                )}
+              </div>
+
+              {reviews.length > 0 ? (
+                <div className="space-y-6">
+                  {reviews.map((review: any) => (
+                    <ReviewCard
+                      key={review.id}
+                      id={review.id}
+                      text={review.text}
+                      meetingType={review.meetingType}
+                      timeframe={review.timeframe}
+                      isVerified={review.isVerified}
+                      helpfulCount={review.helpfulCount}
+                      createdAt={review.createdAt}
+                      ratings={review.ratings}
+                      tags={review.tags}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <Card variant="elevated" className="text-center py-12">
+                  <MessageSquare className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    No reviews yet
+                  </h3>
+                  <p className="text-gray-600 mb-6">
+                    Be the first to review this advisor
+                  </p>
+                  <Link href={`/a/${advisorId}/${advisor.slug}/review`}>
+                    <Button size="lg">
+                      <PenSquare className="w-5 h-5 mr-2" />
+                      Write a Review
+                    </Button>
+                  </Link>
+                </Card>
+              )}
             </div>
           </div>
-        )}
+
+          {/* Right Column: CTA + Quick Actions (4 cols) */}
+          <div className="lg:col-span-4">
+            <div className="sticky top-24 space-y-6">
+              {/* Write Review CTA */}
+              <Card variant="elevated" className="p-6 bg-gradient-to-br from-[#F5F0FF] to-white">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Share Your Experience
+                </h3>
+                <p className="text-sm text-gray-600 mb-6">
+                  Help other students by writing an honest review about your experience with this advisor.
+                </p>
+                <Link href={`/a/${advisorId}/${advisor.slug}/review`}>
+                  <Button size="lg" className="w-full">
+                    <PenSquare className="w-5 h-5 mr-2" />
+                    Write a Review
+                  </Button>
+                </Link>
+              </Card>
+
+              {/* Quick Stats Summary */}
+              {ratings.totalReviews > 0 && (
+                <Card variant="elevated" className="p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Stats</h3>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Overall Rating</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg font-bold text-[#5B2D8B]">
+                          {ratings.overall.toFixed(1)}
+                        </span>
+                        <StarRating rating={ratings.overall} size="sm" />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Total Reviews</span>
+                      <span className="text-lg font-bold text-gray-900">
+                        {ratings.totalReviews}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Helpfulness</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg font-bold text-[#5B2D8B]">
+                          {ratings.helpfulness.toFixed(1)}
+                        </span>
+                        <StarRating rating={ratings.helpfulness} size="sm" />
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Sticky CTA for Mobile */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg z-40">
+        <Link href={`/a/${advisorId}/${advisor.slug}/review`} className="block">
+          <Button size="lg" className="w-full flex items-center justify-center gap-2">
+            <PenSquare className="w-5 h-5" />
+            Write a Review
+          </Button>
+        </Link>
       </div>
     </div>
   );
 }
-

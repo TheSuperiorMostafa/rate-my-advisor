@@ -78,11 +78,11 @@ export function EduVerification() {
   };
 
   return (
-    <div className="p-4 bg-blue-50 border border-blue-200 rounded-md">
-      <h3 className="text-sm font-medium text-blue-900 mb-2">
+    <div className="p-4 bg-[#F5F0FF] border border-violet-200 rounded-md">
+      <h3 className="text-sm font-medium text-purple-900 mb-2">
         Verify Your Student Email
       </h3>
-      <p className="text-xs text-blue-700 mb-4">
+      <p className="text-xs text-[#5B2D8B] mb-4">
         Verify your .edu email to get a "Verified Student" badge on your reviews.
       </p>
 
@@ -105,7 +105,7 @@ export function EduVerification() {
 
       {step === "confirm" && (
         <form onSubmit={handleConfirmCode} className="space-y-2">
-          <p className="text-xs text-blue-700 mb-2">
+          <p className="text-xs text-[#5B2D8B] mb-2">
             Enter the 6-digit code sent to {email}
           </p>
           <input

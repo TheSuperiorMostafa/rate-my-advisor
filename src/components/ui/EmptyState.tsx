@@ -29,7 +29,7 @@ export function EmptyState({ title, description, action }: EmptyStateProps) {
         <div className="mt-6">
           <button
             onClick={action.onClick}
-            className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-[#5B2D8B] hover:bg-[#5B2D8B] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#A78BFA]"
           >
             {action.label}
           </button>

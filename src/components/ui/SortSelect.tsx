@@ -21,7 +21,7 @@ export function SortSelect({ currentSort, advisorId, slug }: SortSelectProps) {
         id="sort-select"
         value={currentSort}
         onChange={handleChange}
-        className="px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+        className="px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A78BFA] bg-white"
       >
         <option value="newest">Most Recent</option>
         <option value="highest">Highest Rated</option>

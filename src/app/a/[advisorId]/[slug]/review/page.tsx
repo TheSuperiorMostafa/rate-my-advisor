@@ -1,7 +1,10 @@
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ReviewForm } from "@/components/review/ReviewForm";
+import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
+import { User } from "lucide-react";
 import Link from "next/link";
+import { prisma } from "@/lib/prisma";
 
 interface PageProps {
   params: Promise<{
@@ -12,25 +15,37 @@ interface PageProps {
 
 async function getAdvisor(advisorId: string) {
   try {
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/advisors/${advisorId}`,
-      { cache: "no-store" }
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data.data;
+    const advisor = await prisma.advisor.findUnique({
+      where: { id: advisorId },
+      include: {
+        department: {
+          include: {
+            university: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!advisor) return null;
+
+    return {
+      advisor: {
+        id: advisor.id,
+        firstName: advisor.firstName,
+        lastName: advisor.lastName,
+        slug: advisor.slug,
+        title: advisor.title,
+        department: advisor.department,
+      },
+    };
   } catch {
     return null;
-  }
-}
-
-async function getTags() {
-  try {
-    // You'll need to create this endpoint or fetch from reviews
-    // For now, return empty array - tags can be fetched from existing reviews
-    return [];
-  } catch {
-    return [];
   }
 }
 
@@ -64,52 +79,52 @@ export default async function WriteReviewPage({ params }: PageProps) {
   const advisor = advisorData.advisor;
   const name = `${advisor.firstName} ${advisor.lastName}`;
 
+  const breadcrumbs = [
+    { label: "Home", href: "/" },
+    {
+      label: advisor.department.university.name,
+      href: `/u/${advisor.department.university.id}/${advisor.department.university.slug}`,
+    },
+    {
+      label: advisor.department.name,
+      href: `/d/${advisor.department.id}/${advisor.department.slug}`,
+    },
+    {
+      label: name,
+      href: `/a/${advisorId}/${slug}`,
+    },
+    { label: "Write Review" },
+  ];
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="bg-white border-b">
-        <div className="max-w-4xl mx-auto px-4 py-8">
-          <nav className="text-sm text-gray-500 mb-4">
-            <Link href="/" className="hover:text-gray-700">
-              Home
-            </Link>
-            <span className="mx-2">/</span>
-            <Link
-              href={`/u/${advisor.department.university.id}/${advisor.department.university.slug}`}
-              className="hover:text-gray-700"
-            >
-              {advisor.department.university.name}
-            </Link>
-            <span className="mx-2">/</span>
-            <Link
-              href={`/d/${advisor.department.id}/${advisor.department.slug}`}
-              className="hover:text-gray-700"
-            >
-              {advisor.department.name}
-            </Link>
-            <span className="mx-2">/</span>
-            <Link
-              href={`/a/${advisorId}/${slug}`}
-              className="hover:text-gray-700"
-            >
-              {name}
-            </Link>
-            <span className="mx-2">/</span>
-            <span className="text-gray-900">Write Review</span>
-          </nav>
+      {/* Header Section */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="container-custom py-8 md:py-12">
+          <Breadcrumbs items={breadcrumbs} className="mb-6" />
 
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Write a Review for {name}
-          </h1>
-          <p className="text-lg text-gray-600">
-            {advisor.title || "Academic Advisor"} • {advisor.department.name}
-          </p>
+          <div className="flex items-start gap-4">
+            <div className="p-3 bg-[#F5F0FF] rounded-xl">
+              <User className="w-8 h-8 text-[#5B2D8B]" />
+            </div>
+            <div className="flex-1">
+              <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
+                Write a Review for {name}
+              </h1>
+              <p className="text-lg text-gray-600">
+                {advisor.title || "Academic Advisor"} • {advisor.department.name} • {advisor.department.university.name}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <ReviewForm advisorId={advisorId} advisorSlug={slug} advisorName={name} />
+      {/* Form Section */}
+      <div className="container-custom py-8 md:py-12">
+        <div className="max-w-4xl mx-auto">
+          <ReviewForm advisorId={advisorId} advisorSlug={slug} advisorName={name} />
+        </div>
       </div>
     </div>
   );
 }
-

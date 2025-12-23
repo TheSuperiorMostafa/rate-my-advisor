@@ -117,7 +117,7 @@ export function SearchResults({ query: initialQuery, type: initialType }: Search
             onClick={() => setType(t)}
             className={`px-4 py-2 rounded-md text-sm font-medium ${
               type === t
-                ? "bg-blue-600 text-white"
+                ? "bg-[#5B2D8B] text-white"
                 : "bg-white text-gray-700 hover:bg-gray-100"
             }`}
           >
@@ -166,7 +166,7 @@ export function SearchResults({ query: initialQuery, type: initialType }: Search
                   <Link
                     key={university.id}
                     href={`/u/${university.id}/${university.slug}`}
-                    className="block p-4 bg-white border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-md transition-all"
+                    className="block p-4 bg-white border border-gray-200 rounded-lg hover:border-violet-300 hover:shadow-md transition-all"
                   >
                     <h3 className="text-lg font-semibold text-gray-900 mb-1">
                       {university.name}
@@ -194,7 +194,7 @@ export function SearchResults({ query: initialQuery, type: initialType }: Search
                   <Link
                     key={department.id}
                     href={`/d/${department.id}/${department.slug}`}
-                    className="block p-4 bg-white border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-md transition-all"
+                    className="block p-4 bg-white border border-gray-200 rounded-lg hover:border-violet-300 hover:shadow-md transition-all"
                   >
                     <h3 className="text-lg font-semibold text-gray-900 mb-1">
                       {department.name}
@@ -222,7 +222,7 @@ export function SearchResults({ query: initialQuery, type: initialType }: Search
                   <Link
                     key={advisor.id}
                     href={`/a/${advisor.id}/${advisor.slug}`}
-                    className="block p-4 bg-white border border-gray-200 rounded-lg hover:border-blue-300 hover:shadow-md transition-all"
+                    className="block p-4 bg-white border border-gray-200 rounded-lg hover:border-violet-300 hover:shadow-md transition-all"
                   >
                     <h3 className="text-lg font-semibold text-gray-900 mb-1">
                       {advisor.name}

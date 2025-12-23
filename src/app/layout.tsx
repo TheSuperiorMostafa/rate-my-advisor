@@ -1,5 +1,5 @@
 import { Providers } from "./providers";
-import { AuthButton } from "@/components/auth/AuthButton";
+import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import "./globals.css";
 
@@ -17,14 +17,7 @@ export default function RootLayout({
     <html lang="en">
       <body className="flex flex-col min-h-screen">
         <Providers>
-          <header className="border-b bg-white">
-            <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-              <a href="/" className="text-xl font-bold text-gray-900 hover:text-gray-700">
-                Rate My Advisor
-              </a>
-              <AuthButton />
-            </div>
-          </header>
+          <Header />
           <main className="flex-grow">{children}</main>
           <Footer />
         </Providers>
@@ -32,4 +25,3 @@ export default function RootLayout({
     </html>
   );
 }
-

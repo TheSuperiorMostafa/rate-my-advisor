@@ -39,7 +39,7 @@ export default async function ModerationPage() {
               <div className="flex gap-4">
                 <a
                   href="/admin/manage"
-                  className="text-sm text-blue-600 hover:text-blue-900"
+                  className="text-sm text-[#5B2D8B] hover:text-purple-900"
                 >
                   Manage Content →
                 </a>

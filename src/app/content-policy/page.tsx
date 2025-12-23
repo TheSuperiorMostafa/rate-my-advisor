@@ -99,20 +99,20 @@ export default function ContentPolicyPage() {
               If you see content that violates this policy, use the "Report" button on any review. Reports are reviewed within 24 hours.
             </p>
             <p className="text-gray-700">
-              For policy questions, contact: <a href="mailto:content@ratemyadvisor.com" className="text-blue-600 hover:underline">content@ratemyadvisor.com</a>
+              For policy questions, contact: <a href="mailto:content@ratemyadvisor.com" className="text-[#5B2D8B] hover:underline">content@ratemyadvisor.com</a>
             </p>
           </section>
 
-          <section className="mb-8 bg-blue-50 border border-blue-200 rounded-lg p-6">
-            <h2 className="text-xl font-semibold text-blue-900 mb-3">Remember</h2>
-            <p className="text-blue-800">
+          <section className="mb-8 bg-[#F5F0FF] border border-violet-200 rounded-lg p-6">
+            <h2 className="text-xl font-semibold text-purple-900 mb-3">Remember</h2>
+            <p className="text-[#4A2375]">
               Reviews are opinions about advisor performance. Be honest, constructive, and respectful. Focus on your experience with the advisor's professional services, not personal matters.
             </p>
           </section>
         </div>
 
         <div className="mt-8 pt-8 border-t border-gray-200">
-          <Link href="/" className="text-blue-600 hover:underline">
+          <Link href="/" className="text-[#5B2D8B] hover:underline">
             ← Back to Home
           </Link>
         </div>

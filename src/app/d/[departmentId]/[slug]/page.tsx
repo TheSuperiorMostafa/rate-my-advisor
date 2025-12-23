@@ -1,9 +1,14 @@
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AdvisorCard } from "@/components/advisor/AdvisorCard";
-import { SearchBar } from "@/components/ui/SearchBar";
+import { AutocompleteSearch } from "@/components/search/AutocompleteSearch";
+import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
+import { Card } from "@/components/ui/Card";
+import { Skeleton, CardSkeleton } from "@/components/ui/Skeleton";
+import { Suspense } from "react";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { GraduationCap } from "lucide-react";
 
 interface PageProps {
   params: Promise<{
@@ -105,41 +110,61 @@ export default async function DepartmentPage({ params, searchParams }: PageProps
   const advisorsData = await getAdvisors(departmentId, searchQuery);
   const advisors = advisorsData.advisors || [];
 
+  const breadcrumbs = [
+    { label: "Home", href: "/" },
+    {
+      label: department.university.name,
+      href: `/u/${department.university.id}/${department.university.slug}`,
+    },
+    { label: department.name },
+  ];
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="bg-white border-b">
-        <div className="max-w-6xl mx-auto px-4 py-8">
-          <nav className="text-sm text-gray-500 mb-4">
-            <Link href="/" className="hover:text-gray-700">
-              Home
-            </Link>
-            <span className="mx-2">/</span>
-            <Link
-              href={`/u/${department.university.id}/${department.university.slug}`}
-              className="hover:text-gray-700"
-            >
-              {department.university.name}
-            </Link>
-            <span className="mx-2">/</span>
-            <span className="text-gray-900">{department.name}</span>
-          </nav>
+      {/* Header Section */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="container-custom py-8 md:py-12">
+          <Breadcrumbs items={breadcrumbs} className="mb-6" />
+          
+          <div className="flex items-start gap-4 mb-6">
+            <div className="p-3 bg-[#F5F0FF] rounded-xl">
+              <GraduationCap className="w-8 h-8 text-[#5B2D8B]" />
+            </div>
+            <div className="flex-1">
+              <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
+                {department.name}
+              </h1>
+              <p className="text-lg text-gray-600">{department.university.name}</p>
+            </div>
+          </div>
 
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">{department.name}</h1>
-          <p className="text-lg text-gray-600 mb-6">{department.university.name}</p>
-
-          <div className="mb-6">
-            <SearchBar
-              placeholder="Search advisors..."
+          <div className="max-w-2xl">
+            <AutocompleteSearch
+              placeholder={`Find an advisor in ${department.name}...`}
               initialValue={searchQuery}
+              autoFocus
+              context={{
+                universityId: department.university.id,
+                departmentId: department.id,
+                universityName: department.university.name,
+              }}
             />
           </div>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 py-8">
-        <h2 className="text-2xl font-bold text-gray-900 mb-6">
-          Advisors ({advisorsData.pagination?.total || advisors.length})
-        </h2>
+      {/* Advisors Section */}
+      <div className="container-custom py-8 md:py-12">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl md:text-3xl font-bold text-gray-900">
+            Advisors
+            {advisorsData.pagination?.total !== undefined && (
+              <span className="text-gray-500 font-normal ml-2">
+                ({advisorsData.pagination.total})
+              </span>
+            )}
+          </h2>
+        </div>
 
         {advisors.length > 0 ? (
           <div className="space-y-4">
@@ -156,16 +181,19 @@ export default async function DepartmentPage({ params, searchParams }: PageProps
             ))}
           </div>
         ) : (
-          <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
-            <p className="text-gray-500">
+          <Card className="text-center py-12">
+            <GraduationCap className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              {searchQuery ? `No advisors found` : "No advisors yet"}
+            </h3>
+            <p className="text-gray-600">
               {searchQuery
-                ? `No advisors found matching "${searchQuery}"`
-                : "No advisors found"}
+                ? `Try a different search term`
+                : "Advisors will appear here once added"}
             </p>
-          </div>
+          </Card>
         )}
       </div>
     </div>
   );
 }
-

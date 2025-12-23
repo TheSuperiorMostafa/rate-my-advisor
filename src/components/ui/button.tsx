@@ -1,35 +1,45 @@
-import * as React from "react";
+import { ButtonHTMLAttributes, forwardRef } from "react";
 import { cn } from "@/lib/utils";
+import { Loader2 } from "lucide-react";
 
-export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "default" | "outline" | "ghost";
-  size?: "default" | "sm" | "lg";
+interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: "primary" | "secondary" | "ghost" | "outline" | "danger";
+  size?: "sm" | "md" | "lg";
+  isLoading?: boolean;
+  children: React.ReactNode;
 }
 
-const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = "default", size = "default", ...props }, ref) => {
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant = "primary", size = "md", isLoading, disabled, children, ...props }, ref) => {
+    const baseStyles = "inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none";
+    
+    const variants = {
+      primary: "bg-[#5B2D8B] text-white hover:bg-[#4A2375] active:bg-[#4A2375] focus-visible:ring-[#A78BFA] shadow-sm hover:shadow",
+      secondary: "bg-gray-100 text-gray-900 hover:bg-gray-200 active:bg-gray-300 focus-visible:ring-gray-500",
+      ghost: "text-gray-700 hover:bg-gray-100 active:bg-gray-200 focus-visible:ring-gray-500",
+      outline: "border-2 border-gray-300 text-gray-700 hover:bg-gray-50 active:bg-gray-100 focus-visible:ring-gray-500",
+      danger: "bg-[#DC2626] text-white hover:bg-red-700 active:bg-red-800 focus-visible:ring-red-500 shadow-sm hover:shadow",
+    };
+
+    const sizes = {
+      sm: "px-3 py-1.5 text-sm gap-1.5",
+      md: "px-4 py-2 text-base gap-2",
+      lg: "px-6 py-3 text-lg gap-2.5",
+    };
+
     return (
       <button
-        className={cn(
-          "inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
-          {
-            "bg-blue-600 text-white hover:bg-blue-700": variant === "default",
-            "border border-gray-300 bg-white hover:bg-gray-50": variant === "outline",
-            "hover:bg-gray-100": variant === "ghost",
-            "h-10 px-4 py-2": size === "default",
-            "h-9 px-3 text-sm": size === "sm",
-            "h-11 px-8": size === "lg",
-          },
-          className
-        )}
         ref={ref}
+        className={cn(baseStyles, variants[variant], sizes[size], className)}
+        disabled={disabled || isLoading}
         {...props}
-      />
+      >
+        {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+        {children}
+      </button>
     );
   }
 );
-Button.displayName = "Button";
 
-export { Button };
+Button.displayName = "Button";
 

@@ -125,7 +125,7 @@ export function ReviewModerationCard({ review, onAction, showReports }: ReviewMo
           </div>
           <Link
             href={`/a/${review.advisor.id}${review.advisor.slug ? `/${review.advisor.slug}` : ""}`}
-            className="text-sm text-blue-600 hover:text-blue-800 underline"
+            className="text-sm text-[#5B2D8B] hover:text-[#4A2375] underline"
             target="_blank"
             rel="noopener noreferrer"
           >
@@ -255,7 +255,7 @@ export function ReviewModerationCard({ review, onAction, showReports }: ReviewMo
               onChange={(e) => setRejectReason(e.target.value)}
               placeholder="Enter rejection reason..."
               rows={4}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#A78BFA] mb-4"
             />
             <div className="flex gap-3 justify-end">
               <Button

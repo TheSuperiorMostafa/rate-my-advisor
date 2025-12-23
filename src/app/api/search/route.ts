@@ -13,16 +13,11 @@ export async function GET(request: NextRequest) {
 
   try {
     const searchParams = request.nextUrl.searchParams;
-    const query = searchParams.get("q") || "";
+    const query = searchParams.get("q") || searchParams.get("query") || "";
     const type = searchParams.get("type") || "all"; // all, university, department, advisor
+    const universityId = searchParams.get("universityId") || undefined;
 
-    if (!query || query.trim().length < 2) {
-      return NextResponse.json(
-        { error: "Search query must be at least 2 characters" },
-        { status: 400 }
-      );
-    }
-
+    // Allow empty query for top universities
     const searchTerm = query.trim().toLowerCase();
     const results: any = {
       universities: [],
@@ -30,24 +25,28 @@ export async function GET(request: NextRequest) {
       advisors: [],
     };
 
-    // Search universities
-    if (type === "all" || type === "university") {
+    // If universityId is provided, only search advisors and departments (not universities)
+    // If no universityId, only search universities
+    if (!universityId && (type === "all" || type === "university")) {
+      const where = query.trim().length >= 2
+        ? {
+            OR: [
+              { name: { contains: searchTerm, mode: "insensitive" as const } },
+              { slug: { contains: searchTerm, mode: "insensitive" as const } },
+              { location: { contains: searchTerm, mode: "insensitive" as const } },
+            ],
+          }
+        : {};
+
       const universities = await prisma.university.findMany({
-        where: {
-          OR: [
-            { name: { contains: searchTerm, mode: "insensitive" as const } },
-            { slug: { contains: searchTerm, mode: "insensitive" as const } },
-            { location: { contains: searchTerm, mode: "insensitive" as const } },
-          ],
-        },
-        take: 20,
+        where,
+        take: 8, // Limit for nav search
         orderBy: { name: "asc" },
-        include: {
-          _count: {
-            select: {
-              departments: true,
-            },
-          },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          location: true,
         },
       });
 
@@ -56,35 +55,31 @@ export async function GET(request: NextRequest) {
         name: u.name,
         slug: u.slug,
         location: u.location,
-        departmentCount: u._count.departments,
       }));
     }
 
-    // Search departments
-    if (type === "all" || type === "department") {
+    // Search departments (only if query is 2+ chars, and if universityId is provided or type includes department)
+    if ((type === "all" || type === "department") && query.trim().length >= 2 && universityId) {
       const departments = await prisma.department.findMany({
         where: {
-          OR: [
-            { name: { contains: searchTerm, mode: "insensitive" as const } },
-            { slug: { contains: searchTerm, mode: "insensitive" as const } },
+          AND: [
+            { universityId: universityId },
+            {
+              OR: [
+                { name: { contains: searchTerm, mode: "insensitive" as const } },
+                { slug: { contains: searchTerm, mode: "insensitive" as const } },
+              ],
+            },
           ],
         },
-        take: 20,
-        orderBy: [
-          { university: { name: "asc" } },
-          { name: "asc" },
-        ],
+        take: 8, // Limit for nav search
+        orderBy: { name: "asc" },
         include: {
           university: {
             select: {
               id: true,
               name: true,
               slug: true,
-            },
-          },
-          _count: {
-            select: {
-              advisors: true,
             },
           },
         },
@@ -99,16 +94,20 @@ export async function GET(request: NextRequest) {
           name: d.university.name,
           slug: d.university.slug,
         },
-        advisorCount: d._count.advisors,
       }));
     }
 
-    // Search advisors
-    if (type === "all" || type === "advisor") {
+    // Search advisors (only if query is 2+ chars, and if universityId is provided or type includes advisor)
+    if ((type === "all" || type === "advisor") && query.trim().length >= 2 && universityId) {
       const advisors = await prisma.advisor.findMany({
         where: {
           AND: [
             { isActive: true },
+            {
+              department: {
+                universityId: universityId,
+              },
+            },
             {
               OR: [
                 { firstName: { contains: searchTerm, mode: "insensitive" as const } },
@@ -119,9 +118,8 @@ export async function GET(request: NextRequest) {
             },
           ],
         },
-        take: 20,
+        take: 8, // Limit for nav search
         orderBy: [
-          { department: { university: { name: "asc" } } },
           { department: { name: "asc" } },
           { lastName: "asc" },
           { firstName: "asc" },
@@ -138,15 +136,6 @@ export async function GET(request: NextRequest) {
               },
             },
           },
-          _count: {
-            select: {
-              reviews: {
-                where: {
-                  status: "approved",
-                },
-              },
-            },
-          },
         },
       });
 
@@ -154,7 +143,6 @@ export async function GET(request: NextRequest) {
         id: a.id,
         name: `${a.firstName} ${a.lastName}`,
         slug: a.slug,
-        title: a.title,
         department: {
           id: a.department.id,
           name: a.department.name,
@@ -165,7 +153,6 @@ export async function GET(request: NextRequest) {
           name: a.department.university.name,
           slug: a.department.university.slug,
         },
-        reviewCount: a._count.reviews,
       }));
     }
 
@@ -175,4 +162,3 @@ export async function GET(request: NextRequest) {
     return errorResponse("Internal server error", 500);
   }
 }
-

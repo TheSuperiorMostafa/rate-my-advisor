@@ -4,14 +4,43 @@ import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "./prisma";
 
+// Validate OAuth configuration
+const googleClientId = process.env.GOOGLE_CLIENT_ID || "";
+const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET || "";
+const nextAuthUrl = process.env.NEXTAUTH_URL || "";
+
+if (process.env.NODE_ENV === "production") {
+  if (!googleClientId) {
+    console.error("❌ GOOGLE_CLIENT_ID is missing in production!");
+  }
+  if (!googleClientSecret) {
+    console.error("❌ GOOGLE_CLIENT_SECRET is missing in production!");
+  }
+  if (!nextAuthUrl) {
+    console.error("❌ NEXTAUTH_URL is missing in production!");
+  } else {
+    console.log("✅ NEXTAUTH_URL:", nextAuthUrl);
+  }
+  if (googleClientId && !googleClientId.includes(".apps.googleusercontent.com")) {
+    console.error("❌ GOOGLE_CLIENT_ID format looks incorrect:", googleClientId.substring(0, 20) + "...");
+  }
+}
+
 export const authOptions: NextAuthConfig = {
   adapter: PrismaAdapter(prisma) as any,
   secret: process.env.NEXTAUTH_SECRET,
   trustHost: true, // Required for Vercel/production deployments
   providers: [
     GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID || "",
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+      clientId: googleClientId,
+      clientSecret: googleClientSecret,
+      authorization: {
+        params: {
+          prompt: "consent",
+          access_type: "offline",
+          response_type: "code",
+        },
+      },
     }),
     CredentialsProvider({
       name: "Admin Login",
@@ -161,12 +190,40 @@ export const authOptions: NextAuthConfig = {
     },
     async signIn({ user, account, profile }) {
       try {
-        console.log("✅ Sign in attempt:", { userId: user?.id, email: user?.email });
+        console.log("✅ Sign in attempt:", { 
+          userId: user?.id, 
+          email: user?.email,
+          provider: account?.provider,
+          accountId: account?.providerAccountId 
+        });
+        
+        // Log OAuth errors if present
+        if (account?.error) {
+          console.error("❌ OAuth error in signIn callback:", account.error);
+          return false;
+        }
+        
+        // Allow sign in for Google OAuth
+        if (account?.provider === "google") {
+          return true;
+        }
+        
+        // Allow credentials (admin login)
+        if (account?.provider === "credentials") {
+          return true;
+        }
+        
         return true;
       } catch (error) {
         console.error("❌ Sign in error:", error);
         return false;
       }
+    },
+    async redirect({ url, baseUrl }) {
+      // Ensure redirects stay within the same origin
+      if (url.startsWith("/")) return `${baseUrl}${url}`;
+      if (new URL(url).origin === baseUrl) return url;
+      return baseUrl;
     },
   },
   session: {

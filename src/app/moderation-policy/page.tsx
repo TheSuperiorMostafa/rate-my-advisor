@@ -95,7 +95,7 @@ export default function ModerationPolicyPage() {
             </p>
             <div className="bg-gray-100 p-4 rounded-lg mt-2">
               <p className="text-gray-700">
-                Email: <a href="mailto:moderation@ratemyadvisor.com" className="text-blue-600 hover:underline">moderation@ratemyadvisor.com</a><br />
+                Email: <a href="mailto:moderation@ratemyadvisor.com" className="text-[#5B2D8B] hover:underline">moderation@ratemyadvisor.com</a><br />
                 Response time: 24-48 hours
               </p>
             </div>
@@ -103,7 +103,7 @@ export default function ModerationPolicyPage() {
         </div>
 
         <div className="mt-8 pt-8 border-t border-gray-200">
-          <Link href="/" className="text-blue-600 hover:underline">
+          <Link href="/" className="text-[#5B2D8B] hover:underline">
             ← Back to Home
           </Link>
         </div>

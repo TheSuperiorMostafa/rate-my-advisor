@@ -118,14 +118,14 @@ export default function TermsPage() {
               For questions about these Terms, contact us:
             </p>
             <ul className="list-none text-gray-700 mt-2 space-y-1">
-              <li>Legal: <a href="mailto:legal@ratemyadvisor.com" className="text-blue-600 hover:underline">legal@ratemyadvisor.com</a></li>
-              <li>General: <a href="mailto:support@ratemyadvisor.com" className="text-blue-600 hover:underline">support@ratemyadvisor.com</a></li>
+              <li>Legal: <a href="mailto:legal@ratemyadvisor.com" className="text-[#5B2D8B] hover:underline">legal@ratemyadvisor.com</a></li>
+              <li>General: <a href="mailto:support@ratemyadvisor.com" className="text-[#5B2D8B] hover:underline">support@ratemyadvisor.com</a></li>
             </ul>
           </section>
         </div>
 
         <div className="mt-8 pt-8 border-t border-gray-200">
-          <Link href="/" className="text-blue-600 hover:underline">
+          <Link href="/" className="text-[#5B2D8B] hover:underline">
             ← Back to Home
           </Link>
         </div>
