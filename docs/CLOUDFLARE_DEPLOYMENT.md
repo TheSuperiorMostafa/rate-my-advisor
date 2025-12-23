@@ -42,15 +42,6 @@ This will:
 
 ### 4. Configure Custom Domain
 
-```bash
-# Add custom domain
-wrangler pages domain add rate-my-advisor.com --project-name=rate-my-advisor
-
-# Add www subdomain (optional)
-wrangler pages domain add www.rate-my-advisor.com --project-name=rate-my-advisor
-```
-
-**Or via Cloudflare Dashboard:**
 1. Go to Cloudflare Dashboard → Pages → rate-my-advisor
 2. Settings → Custom Domains → Add domain
 3. Add `rate-my-advisor.com` and `www.rate-my-advisor.com`
@@ -97,10 +88,10 @@ wrangler pages secret put GOOGLE_CLIENT_SECRET --project-name=rate-my-advisor
 
 ### 7. Update Vercel Backend URL
 
-If your Vercel deployment URL is different, update `functions/api/[[path]].ts`:
+If your Vercel deployment URL is different, update `functions/_middleware.ts`:
 
 ```typescript
-const vercelUrl = `https://YOUR-VERCEL-URL.vercel.app${fullPath}`;
+const vercelUrl = `https://YOUR-VERCEL-URL.vercel.app${url.pathname}${url.search}`;
 ```
 
 ## How It Works
@@ -113,7 +104,7 @@ All `/api/*` requests are automatically proxied to Vercel via Cloudflare Functio
 User → Cloudflare Pages → /api/* → Cloudflare Function → Vercel Backend
 ```
 
-The proxy function is located at `functions/api/[[path]].ts` and handles:
+The proxy function is located at `functions/_middleware.ts` and handles:
 - All HTTP methods (GET, POST, PUT, DELETE, etc.)
 - Headers forwarding
 - CORS handling
@@ -156,7 +147,7 @@ npm run pages:deploy
 ### API Requests Fail
 
 1. Verify Vercel backend is accessible
-2. Check `functions/api/[[path]].ts` has correct Vercel URL
+2. Check `functions/_middleware.ts` has correct Vercel URL
 3. Check Cloudflare Function logs in dashboard
 4. Verify CORS settings
 
