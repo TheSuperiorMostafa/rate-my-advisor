@@ -92,15 +92,29 @@ export function AutocompleteSearch({
           params.set("departmentId", context.departmentId);
         }
 
-        const res = await fetch(`/api/autocomplete?${params.toString()}`);
+        const url = `/api/autocomplete?${params.toString()}`;
+        const res = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
         if (res.ok) {
           const data = await res.json();
-          setResults(data.data || { universities: [], departments: [], advisors: [] });
+          if (data.success && data.data) {
+            setResults(data.data);
+          } else {
+            console.warn("Autocomplete API returned unexpected format:", data);
+            setResults({ universities: [], departments: [], advisors: [] });
+          }
         } else {
+          const errorText = await res.text();
+          console.error(`Autocomplete API error (${res.status}):`, errorText);
           setResults({ universities: [], departments: [], advisors: [] });
         }
       } catch (error) {
-        console.error("Autocomplete error:", error);
+        console.error("Autocomplete fetch error:", error);
         setResults({ universities: [], departments: [], advisors: [] });
       } finally {
         setLoading(false);
@@ -279,7 +293,7 @@ export function AutocompleteSearch({
       )}
 
       {/* Dropdown */}
-      {isOpen && (
+      {isOpen && query.trim().length > 0 && (
         <AutocompleteDropdown
           query={query}
           results={results}

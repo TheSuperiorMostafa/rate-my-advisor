@@ -28,9 +28,19 @@ export default function SignInPage() {
         AccessDenied: "Access denied. Please try again.",
         Verification: "Verification error. Please try again.",
         CredentialsSignin: "Invalid username or password.",
+        OAuthSignin: "Error initiating OAuth sign-in. Please check your OAuth configuration.",
+        OAuthCallback: "Error processing OAuth callback. Please try again.",
+        OAuthCreateAccount: "Could not create OAuth account. Please try again.",
+        EmailCreateAccount: "Could not create email account. Please try again.",
+        Callback: "Error in OAuth callback. Please try again.",
+        OAuthAccountNotLinked: "An account with this email already exists. Please sign in with your original method.",
+        EmailSignin: "Error sending email. Please try again.",
         Default: "An error occurred during sign-in. Please try again.",
       };
       setErrorMessage(errorMessages[error] || errorMessages.Default);
+      
+      // Log detailed error for debugging
+      console.error("Sign-in error:", error);
     }
   }, [error]);
 

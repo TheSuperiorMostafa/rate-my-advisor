@@ -81,6 +81,13 @@ export function AutocompleteDropdown({
   const flattenedResults = (() => {
     if (!results) return [];
     
+    // Ensure results has the expected structure
+    const safeResults = {
+      universities: Array.isArray(results.universities) ? results.universities : [],
+      departments: Array.isArray(results.departments) ? results.departments : [],
+      advisors: Array.isArray(results.advisors) ? results.advisors : [],
+    };
+    
     const items: Array<{
       type: "university" | "department" | "advisor";
       data: any;
@@ -94,8 +101,8 @@ export function AutocompleteDropdown({
     // In university/department context: prioritize advisors, then departments
     if (context?.universityId || context?.departmentId) {
       // Advisors first
-      if (results.advisors) {
-        results.advisors.forEach((advisor) => {
+      if (safeResults.advisors && safeResults.advisors.length > 0) {
+        safeResults.advisors.forEach((advisor) => {
           const isCurrentDept = context?.departmentId === advisor.department.id;
           items.push({
             type: "advisor",
@@ -108,8 +115,8 @@ export function AutocompleteDropdown({
       }
 
       // Departments second
-      if (results.departments) {
-        results.departments.forEach((dept) => {
+      if (safeResults.departments && safeResults.departments.length > 0) {
+        safeResults.departments.forEach((dept) => {
           items.push({
             type: "department",
             data: dept,
@@ -121,8 +128,8 @@ export function AutocompleteDropdown({
       }
     } else {
       // Global context: universities first, then departments, then advisors
-      if (results.universities) {
-        results.universities.forEach((uni) => {
+      if (safeResults.universities && safeResults.universities.length > 0) {
+        safeResults.universities.forEach((uni) => {
           items.push({
             type: "university",
             data: uni,
@@ -133,8 +140,8 @@ export function AutocompleteDropdown({
         });
       }
 
-      if (results.departments) {
-        results.departments.forEach((dept) => {
+      if (safeResults.departments && safeResults.departments.length > 0) {
+        safeResults.departments.forEach((dept) => {
           items.push({
             type: "department",
             data: dept,
@@ -145,8 +152,8 @@ export function AutocompleteDropdown({
         });
       }
 
-      if (results.advisors) {
-        results.advisors.forEach((advisor) => {
+      if (safeResults.advisors && safeResults.advisors.length > 0) {
+        safeResults.advisors.forEach((advisor) => {
           items.push({
             type: "advisor",
             data: advisor,
@@ -161,6 +168,7 @@ export function AutocompleteDropdown({
     return items;
   })();
 
+  // Show loading state
   if (loading) {
     return (
       <div
@@ -186,6 +194,7 @@ export function AutocompleteDropdown({
     );
   }
 
+  // Show "no results" if we have a query but no results
   if (!results || flattenedResults.length === 0) {
     if (query.trim().length >= 1) {
       return (

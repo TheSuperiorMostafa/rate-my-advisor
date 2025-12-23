@@ -12,17 +12,25 @@ const nextAuthUrl = process.env.NEXTAUTH_URL || "";
 if (process.env.NODE_ENV === "production") {
   if (!googleClientId) {
     console.error("❌ GOOGLE_CLIENT_ID is missing in production!");
+  } else {
+    console.log("✅ GOOGLE_CLIENT_ID is set:", googleClientId.substring(0, 30) + "...");
+    if (!googleClientId.includes(".apps.googleusercontent.com")) {
+      console.error("❌ GOOGLE_CLIENT_ID format looks incorrect - should contain '.apps.googleusercontent.com'");
+      console.error("   Current value starts with:", googleClientId.substring(0, 30) + "...");
+    }
   }
   if (!googleClientSecret) {
     console.error("❌ GOOGLE_CLIENT_SECRET is missing in production!");
+  } else {
+    console.log("✅ GOOGLE_CLIENT_SECRET is set:", googleClientSecret.substring(0, 10) + "...");
+    if (!googleClientSecret.startsWith("GOCSPX-")) {
+      console.warn("⚠️ GOOGLE_CLIENT_SECRET format looks unusual - should start with 'GOCSPX-'");
+    }
   }
   if (!nextAuthUrl) {
     console.error("❌ NEXTAUTH_URL is missing in production!");
   } else {
     console.log("✅ NEXTAUTH_URL:", nextAuthUrl);
-  }
-  if (googleClientId && !googleClientId.includes(".apps.googleusercontent.com")) {
-    console.error("❌ GOOGLE_CLIENT_ID format looks incorrect:", googleClientId.substring(0, 20) + "...");
   }
 }
 
@@ -30,6 +38,10 @@ export const authOptions: NextAuthConfig = {
   adapter: PrismaAdapter(prisma) as any,
   secret: process.env.NEXTAUTH_SECRET,
   trustHost: true, // Required for Vercel/production deployments
+  // Explicitly set the base URL for OAuth callbacks when behind proxy
+  ...(process.env.NEXTAUTH_URL && {
+    basePath: undefined, // Use default /api/auth
+  }),
   providers: [
     GoogleProvider({
       clientId: googleClientId,
@@ -200,6 +212,20 @@ export const authOptions: NextAuthConfig = {
         // Log OAuth errors if present
         if (account?.error) {
           console.error("❌ OAuth error in signIn callback:", account.error);
+          console.error("   Error details:", {
+            error: account.error,
+            errorDescription: account.error_description,
+            errorUri: account.error_uri,
+          });
+          
+          // Log configuration for debugging
+          if (account.error === "invalid_client") {
+            console.error("🔍 Debugging invalid_client error:");
+            console.error("   GOOGLE_CLIENT_ID:", process.env.GOOGLE_CLIENT_ID ? process.env.GOOGLE_CLIENT_ID.substring(0, 30) + "..." : "NOT SET");
+            console.error("   GOOGLE_CLIENT_SECRET:", process.env.GOOGLE_CLIENT_SECRET ? "SET (hidden)" : "NOT SET");
+            console.error("   NEXTAUTH_URL:", process.env.NEXTAUTH_URL || "NOT SET");
+          }
+          
           return false;
         }
         
@@ -220,10 +246,33 @@ export const authOptions: NextAuthConfig = {
       }
     },
     async redirect({ url, baseUrl }) {
+      // When behind Cloudflare proxy, always use NEXTAUTH_URL for OAuth callbacks
+      // This ensures OAuth redirects go to the correct domain (Cloudflare, not Vercel)
+      const redirectBaseUrl = process.env.NEXTAUTH_URL || baseUrl;
+      
+      // Log for debugging
+      if (process.env.NODE_ENV === "production") {
+        console.log("🔀 Redirect callback:", {
+          url,
+          baseUrl,
+          nextAuthUrl: process.env.NEXTAUTH_URL,
+          using: redirectBaseUrl,
+        });
+      }
+      
       // Ensure redirects stay within the same origin
-      if (url.startsWith("/")) return `${baseUrl}${url}`;
-      if (new URL(url).origin === baseUrl) return url;
-      return baseUrl;
+      if (url.startsWith("/")) return `${redirectBaseUrl}${url}`;
+      
+      try {
+        const urlObj = new URL(url);
+        if (urlObj.origin === redirectBaseUrl || urlObj.origin === baseUrl) {
+          return url;
+        }
+      } catch {
+        // Invalid URL, use baseUrl
+      }
+      
+      return redirectBaseUrl;
     },
   },
   session: {
