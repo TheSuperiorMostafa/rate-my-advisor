@@ -6,6 +6,8 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { SortSelect } from "@/components/ui/SortSelect";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { prisma } from "@/lib/prisma";
+import { getAdvisorRatings } from "@/lib/ratings";
 
 interface PageProps {
   params: Promise<{
@@ -17,13 +19,39 @@ interface PageProps {
 
 async function getAdvisor(advisorId: string) {
   try {
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/advisors/${advisorId}`,
-      { cache: "no-store" }
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data.data;
+    const advisor = await prisma.advisor.findUnique({
+      where: { id: advisorId },
+      include: {
+        department: {
+          include: {
+            university: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!advisor) return null;
+
+    const ratings = await getAdvisorRatings(advisorId);
+
+    return {
+      advisor: {
+        id: advisor.id,
+        firstName: advisor.firstName,
+        lastName: advisor.lastName,
+        slug: advisor.slug,
+        title: advisor.title,
+        isActive: advisor.isActive,
+        department: advisor.department,
+      },
+      ratings,
+    };
   } catch {
     return null;
   }
@@ -31,15 +59,68 @@ async function getAdvisor(advisorId: string) {
 
 async function getReviews(advisorId: string, sort: string = "newest") {
   try {
-    const url = new URL(
-      `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/advisors/${advisorId}/reviews`
-    );
-    url.searchParams.set("sort", sort);
+    const allReviews = await prisma.review.findMany({
+      where: {
+        advisorId,
+        status: "approved",
+      },
+      include: {
+        ratings: true,
+        tags: {
+          include: {
+            tag: true,
+          },
+        },
+      },
+    });
 
-    const res = await fetch(url.toString(), { cache: "no-store" });
-    if (!res.ok) return { reviews: [], pagination: { total: 0 } };
-    const data = await res.json();
-    return data.data;
+    // Calculate overall rating for each review
+    const reviewsWithOverall = allReviews.map((review) => {
+      const overallRating =
+        review.ratings.length === 6
+          ? review.ratings.reduce((sum, r) => sum + r.rating, 0) / review.ratings.length
+          : 0;
+      return {
+        ...review,
+        overallRating,
+      };
+    });
+
+    // Sort based on sort parameter
+    let sortedReviews = [...reviewsWithOverall];
+    if (sort === "newest") {
+      sortedReviews.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    } else if (sort === "helpful") {
+      sortedReviews.sort((a, b) => b.helpfulCount - a.helpfulCount);
+    } else if (sort === "highest") {
+      sortedReviews.sort((a, b) => b.overallRating - a.overallRating);
+    } else if (sort === "lowest") {
+      sortedReviews.sort((a, b) => a.overallRating - b.overallRating);
+    }
+
+    return {
+      reviews: sortedReviews.map((review) => ({
+        id: review.id,
+        text: review.text,
+        meetingType: review.meetingType,
+        timeframe: review.timeframe,
+        isVerified: review.isVerified,
+        helpfulCount: review.helpfulCount,
+        createdAt: review.createdAt,
+        ratings: review.ratings.reduce(
+          (acc, r) => ({ ...acc, [r.category]: r.rating }),
+          {} as Record<string, number>
+        ),
+        tags: review.tags.map((rt) => ({
+          id: rt.tag.id,
+          name: rt.tag.name,
+          slug: rt.tag.slug,
+        })),
+      })),
+      pagination: {
+        total: sortedReviews.length,
+      },
+    };
   } catch {
     return { reviews: [], pagination: { total: 0 } };
   }

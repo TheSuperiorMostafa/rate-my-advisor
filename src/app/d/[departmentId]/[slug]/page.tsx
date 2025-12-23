@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { AdvisorCard } from "@/components/advisor/AdvisorCard";
 import { SearchBar } from "@/components/ui/SearchBar";
 import Link from "next/link";
+import { prisma } from "@/lib/prisma";
 
 interface PageProps {
   params: Promise<{
@@ -14,13 +15,19 @@ interface PageProps {
 
 async function getDepartment(departmentId: string) {
   try {
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/departments/${departmentId}`,
-      { cache: "no-store" }
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data.data;
+    const department = await prisma.department.findUnique({
+      where: { id: departmentId },
+      include: {
+        university: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          },
+        },
+      },
+    });
+    return department;
   } catch {
     return null;
   }
@@ -28,15 +35,42 @@ async function getDepartment(departmentId: string) {
 
 async function getAdvisors(departmentId: string, query?: string) {
   try {
-    const url = new URL(
-      `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/departments/${departmentId}/advisors`
-    );
-    if (query) url.searchParams.set("query", query);
+    const where = {
+      departmentId,
+      isActive: true,
+      ...(query && {
+        OR: [
+          { firstName: { contains: query, mode: "insensitive" as const } },
+          { lastName: { contains: query, mode: "insensitive" as const } },
+        ],
+      }),
+    };
 
-    const res = await fetch(url.toString(), { cache: "no-store" });
-    if (!res.ok) return { advisors: [], pagination: { total: 0 } };
-    const data = await res.json();
-    return data.data;
+    const [advisors, total] = await Promise.all([
+      prisma.advisor.findMany({
+        where,
+        orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          slug: true,
+          title: true,
+          _count: {
+            select: {
+              reviews: {
+                where: {
+                  status: "approved",
+                },
+              },
+            },
+          },
+        },
+      }),
+      prisma.advisor.count({ where }),
+    ]);
+
+    return { advisors, pagination: { total } };
   } catch {
     return { advisors: [], pagination: { total: 0 } };
   }

@@ -15,6 +15,7 @@ model User {
   id            String    @id @default(uuid())
   email         String?   @unique
   name          String?
+  image         String? // Profile image from OAuth providers (e.g., Google)
   emailVerified DateTime? // NextAuth email verification
   role          String    @default("USER") // "USER" | "ADMIN"
   eduVerified   Boolean   @default(false) // .edu email verification

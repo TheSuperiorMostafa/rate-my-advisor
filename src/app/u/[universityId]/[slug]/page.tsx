@@ -2,6 +2,7 @@ import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { SearchBar } from "@/components/ui/SearchBar";
 import Link from "next/link";
+import { prisma } from "@/lib/prisma";
 
 interface PageProps {
   params: Promise<{
@@ -13,13 +14,25 @@ interface PageProps {
 
 async function getUniversity(universityId: string) {
   try {
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/universities/${universityId}`,
-      { cache: "no-store" }
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data.data;
+    const university = await prisma.university.findUnique({
+      where: { id: universityId },
+      include: {
+        departments: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            _count: {
+              select: {
+                advisors: true,
+              },
+            },
+          },
+          orderBy: { name: "asc" },
+        },
+      },
+    });
+    return university;
   } catch {
     return null;
   }
