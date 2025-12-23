@@ -57,17 +57,19 @@ export const authOptions: NextAuthConfig = {
       },
     }),
     EmailProvider({
-      server: process.env.RESEND_API_KEY
-        ? undefined // Use Resend API if API key is set
+      // Only set server if Resend is not configured (fallback to SMTP)
+      ...(process.env.RESEND_API_KEY
+        ? {} // No server config - we'll use Resend API directly
         : {
-            // Fallback to SMTP if Resend not configured
-            host: process.env.SMTP_HOST,
-            port: Number(process.env.SMTP_PORT) || 587,
-            auth: {
-              user: process.env.SMTP_USER,
-              pass: process.env.SMTP_PASSWORD,
+            server: {
+              host: process.env.SMTP_HOST || "smtp.resend.com",
+              port: Number(process.env.SMTP_PORT) || 587,
+              auth: {
+                user: process.env.SMTP_USER || "resend",
+                pass: process.env.SMTP_PASSWORD || "",
+              },
             },
-          },
+          }),
       from: process.env.EMAIL_FROM || "onboarding@resend.dev",
       // Custom email sending with Resend API (better than SMTP)
       async sendVerificationRequest({ identifier: email, url, provider }) {
@@ -80,50 +82,79 @@ export const authOptions: NextAuthConfig = {
           try {
             const resend = new Resend(process.env.RESEND_API_KEY);
             
-            await resend.emails.send({
-              from: process.env.EMAIL_FROM || "onboarding@resend.dev",
+            const emailFrom = process.env.EMAIL_FROM || "onboarding@resend.dev";
+            
+            const emailHtml = `
+              <!DOCTYPE html>
+              <html>
+                <head>
+                  <meta charset="utf-8">
+                  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                </head>
+                <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+                  <div style="background: linear-gradient(135deg, #5B2D8B 0%, #7C3AED 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+                    <h1 style="color: white; margin: 0; font-size: 24px;">Rate My Advisor</h1>
+                  </div>
+                  <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
+                    <h2 style="color: #1f2937; margin-top: 0;">Sign in to your account</h2>
+                    <p style="color: #6b7280;">Click the button below to sign in to Rate My Advisor. This link will expire in 24 hours.</p>
+                    <div style="text-align: center; margin: 30px 0;">
+                      <a href="${url}" style="display: inline-block; background: #5B2D8B; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">Sign In</a>
+                    </div>
+                    <p style="color: #6b7280; font-size: 14px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+                      If you didn't request this email, you can safely ignore it.
+                    </p>
+                    <p style="color: #9ca3af; font-size: 12px; margin-top: 20px;">
+                      Or copy and paste this link into your browser:<br>
+                      <a href="${url}" style="color: #5B2D8B; word-break: break-all;">${url}</a>
+                    </p>
+                  </div>
+                </body>
+              </html>
+            `;
+            
+            const emailText = `Sign in to ${host}\n\nClick this link to sign in:\n${url}\n\nThis link will expire in 24 hours.\n\nIf you didn't request this email, you can safely ignore it.`;
+            
+            console.log(`📤 Sending email via Resend to ${email} from ${emailFrom}`);
+            
+            const result = await resend.emails.send({
+              from: emailFrom,
               to: email,
               subject: `Sign in to ${host}`,
-              html: `
-                <!DOCTYPE html>
-                <html>
-                  <head>
-                    <meta charset="utf-8">
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                  </head>
-                  <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-                    <div style="background: linear-gradient(135deg, #5B2D8B 0%, #7C3AED 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
-                      <h1 style="color: white; margin: 0; font-size: 24px;">Rate My Advisor</h1>
-                    </div>
-                    <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
-                      <h2 style="color: #1f2937; margin-top: 0;">Sign in to your account</h2>
-                      <p style="color: #6b7280;">Click the button below to sign in to Rate My Advisor. This link will expire in 24 hours.</p>
-                      <div style="text-align: center; margin: 30px 0;">
-                        <a href="${url}" style="display: inline-block; background: #5B2D8B; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">Sign In</a>
-                      </div>
-                      <p style="color: #6b7280; font-size: 14px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
-                        If you didn't request this email, you can safely ignore it.
-                      </p>
-                      <p style="color: #9ca3af; font-size: 12px; margin-top: 20px;">
-                        Or copy and paste this link into your browser:<br>
-                        <a href="${url}" style="color: #5B2D8B; word-break: break-all;">${url}</a>
-                      </p>
-                    </div>
-                  </body>
-                </html>
-              `,
-              text: `Sign in to ${host}\n\nClick this link to sign in:\n${url}\n\nThis link will expire in 24 hours.\n\nIf you didn't request this email, you can safely ignore it.`,
+              html: emailHtml,
+              text: emailText,
             });
             
-            console.log(`✅ Magic link sent via Resend to ${email}`);
+            // Check for errors in Resend response
+            if (result.error) {
+              console.error("❌ Resend API error:", result.error);
+              throw new Error(`Failed to send email: ${JSON.stringify(result.error)}`);
+            }
+            
+            // Success
+            if (result.data?.id) {
+              console.log(`✅ Magic link sent via Resend to ${email} (Email ID: ${result.data.id})`);
+            } else {
+              console.log(`✅ Magic link sent via Resend to ${email}`);
+            }
+            
+            // Return early - email sent successfully via Resend
+            return;
           } catch (error) {
             console.error("❌ Resend email error:", error);
-            throw error;
+            // Don't throw - let NextAuth fall back to SMTP if configured
+            // But log the error so we know what happened
+            if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD) {
+              console.log("⚠️ Resend failed, falling back to SMTP");
+            } else {
+              throw error; // No fallback available, throw error
+            }
           }
-        } else {
-          // Fallback: NextAuth will use SMTP or default email
-          console.log(`📧 Using SMTP/default email for ${email}`);
         }
+        
+        // If no RESEND_API_KEY, NextAuth will use SMTP server config above
+        // or its default email sending mechanism
+        console.log(`📧 Using SMTP/default email for ${email}`);
       },
     }),
     CredentialsProvider({
