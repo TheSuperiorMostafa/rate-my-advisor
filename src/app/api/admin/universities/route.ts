@@ -42,9 +42,9 @@ export async function POST(request: NextRequest) {
       data: {
         name: data.name,
         slug: data.slug,
-        location: data.location,
+        location: data.location || null,
         website: data.website || null,
-        description: data.description,
+        description: data.description || null,
       },
     });
 

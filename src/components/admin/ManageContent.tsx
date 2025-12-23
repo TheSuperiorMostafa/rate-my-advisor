@@ -112,17 +112,21 @@ export function ManageContent() {
         body: JSON.stringify(formData),
       });
 
+      const data = await res.json();
+
       if (res.ok) {
         setShowForm(false);
         setFormData({});
         loadData();
       } else {
-        const data = await res.json();
-        setError(data.error || "Failed to create");
+        // Show detailed error message
+        const errorMsg = data.error || data.details?.[0]?.message || "Failed to create";
+        setError(errorMsg);
+        console.error("Create error:", data);
       }
     } catch (err) {
       console.error("Error creating:", err);
-      setError("Failed to create");
+      setError(err instanceof Error ? err.message : "Failed to create");
     }
   };
 
