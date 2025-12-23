@@ -1,0 +1,3 @@
+{
+  "/api/auth/edu-verify/confirm/route": "app/api/auth/edu-verify/confirm/route.js"
+}

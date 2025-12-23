@@ -9,7 +9,9 @@
     "start": "next start",
     "lint": "next lint",
     "postinstall": "prisma generate",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "pages:deploy": "./scripts/prepare-cloudflare.sh && wrangler pages deploy .cloudflare-pages --project-name=rate-my-advisor --commit-dirty=true",
+    "pages:deploy:prod": "./scripts/prepare-cloudflare.sh && wrangler pages deploy .cloudflare-pages --project-name=rate-my-advisor --branch=production --commit-dirty=true"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

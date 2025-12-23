@@ -1,0 +1,6 @@
+1:"$Sreact.fragment"
+2:I[22016,["/_next/static/chunks/181c13777b92a9a1.js","/_next/static/chunks/7340adf74ff47ec0.js","/_next/static/chunks/210da68c5ec91cbd.js"],""]
+3:I[97367,["/_next/static/chunks/181c13777b92a9a1.js","/_next/static/chunks/7340adf74ff47ec0.js","/_next/static/chunks/210da68c5ec91cbd.js"],"OutletBoundary"]
+4:"$Sreact.suspense"
+0:{"buildId":"TAbK6L-fZfTFYZlYsuLJl","rsc":["$","$1","c",{"children":[["$","div",null,{"className":"min-h-screen bg-gray-50 flex items-center justify-center","children":["$","div",null,{"className":"text-center","children":[["$","h1",null,{"className":"text-4xl font-bold text-gray-900 mb-4","children":"404"}],["$","p",null,{"className":"text-xl text-gray-600 mb-8","children":"Page not found"}],["$","$L2",null,{"href":"/","children":["$","button",null,{"className":"inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none bg-[#5B2D8B] text-white hover:bg-[#4A2375] active:bg-[#4A2375] focus-visible:ring-[#A78BFA] shadow-sm hover:shadow px-4 py-2 text-base gap-2","children":["$undefined","Go Home"]}]}]]}]}],null,["$","$L3",null,{"children":["$","$4",null,{"name":"Next.MetadataOutlet","children":"$@5"}]}]]}],"loading":null,"isPartial":false}
+5:null

@@ -1,0 +1,9 @@
+# API routes proxy to Vercel backend
+/api/* https://rate-my-advisor.vercel.app/api/:splat 200
+
+# Auth routes proxy to Vercel
+/api/auth/* https://rate-my-advisor.vercel.app/api/auth/:splat 200
+
+# All other routes handled by Next.js
+/* /index.html 200
+

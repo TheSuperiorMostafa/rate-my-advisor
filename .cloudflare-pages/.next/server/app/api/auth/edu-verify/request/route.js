@@ -1,0 +1,10 @@
+var R=require("../../../../../chunks/[turbopack]_runtime.js")("server/app/api/auth/edu-verify/request/route.js")
+R.c("server/chunks/[root-of-the-server]__39bffdc8._.js")
+R.c("server/chunks/[root-of-the-server]__d7355d04._.js")
+R.c("server/chunks/node_modules_next_dist_79f1aee4._.js")
+R.c("server/chunks/[root-of-the-server]__3d0cd2bd._.js")
+R.c("server/chunks/node_modules_zod_v4_classic_external_fa90cebf.js")
+R.c("server/chunks/node_modules_a5b53419._.js")
+R.c("server/chunks/_next-internal_server_app_api_auth_edu-verify_request_route_actions_a9826d1a.js")
+R.m(19214)
+module.exports=R.m(19214).exports
