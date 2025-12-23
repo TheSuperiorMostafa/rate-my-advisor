@@ -70,52 +70,44 @@ export const authOptions: NextAuthConfig = {
     verifyRequest: "/auth/verify-email",
   },
   callbacks: {
-    async session({ session, user, token }) {
-      // Handle credentials provider (no user object)
-      if (token && !user) {
-        session.user = {
-          id: token.sub || "",
-          email: token.email || "",
-          name: token.name || "",
-          role: (token.role as "USER" | "ADMIN") || "USER",
-          eduVerified: token.eduVerified as boolean || false,
-        };
-        return session;
-      }
-
-      // Handle database sessions (Google OAuth)
-      if (session.user && user) {
+    async session({ session, token }) {
+      // With JWT strategy, we get token instead of user
+      if (token && session.user) {
+        // Get user from database to include role (for both OAuth and credentials)
         try {
-          // Get user from database to include role
-          const dbUser = await prisma.user.findUnique({
-            where: { id: user.id },
-            select: {
-              id: true,
-              email: true,
-              name: true,
-              role: true,
-              eduVerified: true,
-            },
-          });
+          const userId = token.sub;
+          if (userId) {
+            const dbUser = await prisma.user.findUnique({
+              where: { id: userId },
+              select: {
+                id: true,
+                email: true,
+                name: true,
+                role: true,
+                eduVerified: true,
+              },
+            });
 
-          if (dbUser) {
-            session.user.id = dbUser.id;
-            session.user.role = dbUser.role as "USER" | "ADMIN";
-            session.user.eduVerified = dbUser.eduVerified;
-          } else {
-            // User not found in DB yet (shouldn't happen, but handle gracefully)
-            console.warn(`User ${user.id} not found in database`);
-            session.user.id = user.id;
-            session.user.role = "USER";
-            session.user.eduVerified = false;
+            if (dbUser) {
+              session.user.id = dbUser.id;
+              session.user.email = dbUser.email || session.user.email || "";
+              session.user.name = dbUser.name || session.user.name || "";
+              session.user.role = dbUser.role as "USER" | "ADMIN";
+              session.user.eduVerified = dbUser.eduVerified;
+            } else {
+              // Fallback to token data
+              session.user.id = userId;
+              session.user.role = (token.role as "USER" | "ADMIN") || "USER";
+              session.user.eduVerified = (token.eduVerified as boolean) || false;
+            }
           }
         } catch (error) {
           console.error("❌ Error in session callback:", error);
-          // Return basic session even if database query fails
-          if (user) {
-            session.user.id = user.id;
-            session.user.role = "USER";
-            session.user.eduVerified = false;
+          // Fallback to token data
+          if (token.sub) {
+            session.user.id = token.sub;
+            session.user.role = (token.role as "USER" | "ADMIN") || "USER";
+            session.user.eduVerified = (token.eduVerified as boolean) || false;
           }
         }
       }
@@ -129,6 +121,28 @@ export const authOptions: NextAuthConfig = {
         token.name = user.name;
         token.role = user.role;
         token.eduVerified = user.eduVerified;
+      } else if (account && account.provider === "google") {
+        // For Google OAuth, we'll fetch user from DB in session callback
+        // But we need to store the user ID from the account
+        if (account.providerAccountId) {
+          // Find user by their Google account
+          const accountRecord = await prisma.account.findUnique({
+            where: {
+              provider_providerAccountId: {
+                provider: "google",
+                providerAccountId: account.providerAccountId,
+              },
+            },
+            include: { user: true },
+          });
+          if (accountRecord?.user) {
+            token.sub = accountRecord.user.id;
+            token.email = accountRecord.user.email || "";
+            token.name = accountRecord.user.name || "";
+            token.role = accountRecord.user.role as "USER" | "ADMIN";
+            token.eduVerified = accountRecord.user.eduVerified;
+          }
+        }
       }
       return token;
     },
