@@ -1,9 +1,9 @@
 import { AutocompleteSearch } from "@/components/search/AutocompleteSearch";
-import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/button";
 import { Metadata } from "next";
 import Link from "next/link";
 import { GraduationCap, Search, Star, Shield } from "lucide-react";
+import { UniversityCard } from "@/components/university/UniversityCard";
 
 export const metadata: Metadata = {
   title: "Rate My Advisor - Find and Review Academic Advisors",
@@ -153,29 +153,14 @@ export default async function HomePage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
             {universities.map((university: any) => (
-              <Link
+              <UniversityCard
                 key={university.id}
-                href={`/u/${university.id}/${university.slug}`}
-                className="block"
-              >
-                <Card variant="interactive" className="h-full group">
-                  <div className="flex items-start justify-between mb-3">
-                    <h3 className="text-xl font-semibold text-gray-900 group-hover:text-[#5B2D8B] transition-colors">
-                      {university.name}
-                    </h3>
-                  </div>
-                  {university.location && (
-                    <p className="text-sm text-gray-600 mb-4">{university.location}</p>
-                  )}
-                  <div className="flex items-center gap-2 text-sm text-gray-500">
-                    <GraduationCap className="w-4 h-4" />
-                    <span>
-                      {university._count?.departments || 0}{" "}
-                      {university._count?.departments === 1 ? "department" : "departments"}
-                    </span>
-                  </div>
-                </Card>
-              </Link>
+                id={university.id}
+                name={university.name}
+                slug={university.slug}
+                location={university.location}
+                departmentCount={university._count?.departments || 0}
+              />
             ))}
           </div>
 
