@@ -2,10 +2,35 @@
 
 import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 
 export default function SignInPage() {
-  const handleGoogleSignIn = () => {
-    signIn("google", { callbackUrl: "/" });
+  const searchParams = useSearchParams();
+  const error = searchParams.get("error");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (error) {
+      // Map NextAuth error codes to user-friendly messages
+      const errorMessages: Record<string, string> = {
+        Configuration: "Server configuration error. Please contact support.",
+        AccessDenied: "Access denied. Please try again.",
+        Verification: "Verification error. Please try again.",
+        Default: "An error occurred during sign-in. Please try again.",
+      };
+      setErrorMessage(errorMessages[error] || errorMessages.Default);
+    }
+  }, [error]);
+
+  const handleGoogleSignIn = async () => {
+    try {
+      setErrorMessage(null);
+      await signIn("google", { callbackUrl: "/" });
+    } catch (err) {
+      console.error("Sign in error:", err);
+      setErrorMessage("Failed to initiate sign-in. Please try again.");
+    }
   };
 
   return (
@@ -42,6 +67,14 @@ export default function SignInPage() {
             </svg>
             Sign in with Google
           </Button>
+          {errorMessage && (
+            <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
+              <p className="text-sm text-red-800">{errorMessage}</p>
+              {error && (
+                <p className="text-xs text-red-600 mt-1">Error code: {error}</p>
+              )}
+            </div>
+          )}
           <p className="text-xs text-gray-500 text-center">
             By signing in, you agree to our Terms of Service and Privacy Policy
           </p>
