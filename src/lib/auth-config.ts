@@ -121,11 +121,9 @@ export const authOptions: NextAuthConfig = {
         token.name = user.name;
         token.role = user.role;
         token.eduVerified = user.eduVerified;
-      } else if (account && account.provider === "google") {
-        // For Google OAuth, we'll fetch user from DB in session callback
-        // But we need to store the user ID from the account
-        if (account.providerAccountId) {
-          // Find user by their Google account
+      } else if (account && account.provider === "google" && account.providerAccountId) {
+        // For Google OAuth, fetch user from DB
+        try {
           const accountRecord = await prisma.account.findUnique({
             where: {
               provider_providerAccountId: {
@@ -142,6 +140,9 @@ export const authOptions: NextAuthConfig = {
             token.role = accountRecord.user.role as "USER" | "ADMIN";
             token.eduVerified = accountRecord.user.eduVerified;
           }
+        } catch (error) {
+          console.error("Error fetching user in jwt callback:", error);
+          // Continue with token as-is if DB query fails
         }
       }
       return token;
