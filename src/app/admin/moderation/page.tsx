@@ -31,18 +31,26 @@ export default async function ModerationPage() {
     <div className="min-h-screen bg-gray-50">
       <div className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-4 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Moderation Dashboard</h1>
-              <p className="text-sm text-gray-600 mt-1">Review and manage user-submitted reviews</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Moderation Dashboard</h1>
+                <p className="text-sm text-gray-600 mt-1">Review and manage user-submitted reviews</p>
+              </div>
+              <div className="flex gap-4">
+                <a
+                  href="/admin/manage"
+                  className="text-sm text-blue-600 hover:text-blue-900"
+                >
+                  Manage Content →
+                </a>
+                <a
+                  href="/"
+                  className="text-sm text-gray-600 hover:text-gray-900"
+                >
+                  ← Back to Site
+                </a>
+              </div>
             </div>
-            <a
-              href="/"
-              className="text-sm text-gray-600 hover:text-gray-900"
-            >
-              ← Back to Site
-            </a>
-          </div>
         </div>
       </div>
 
