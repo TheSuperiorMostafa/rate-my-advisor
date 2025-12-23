@@ -201,21 +201,13 @@ export function ManageContent() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Location</label>
+                <label className="block text-sm font-medium text-gray-700">Location (optional)</label>
                 <input
                   type="text"
                   value={formData.location || ""}
                   onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Website</label>
-                <input
-                  type="url"
-                  value={formData.website || ""}
-                  onChange={(e) => setFormData({ ...formData, website: e.target.value })}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                  placeholder="e.g., Cambridge, MA"
                 />
               </div>
             </>

@@ -8,8 +8,6 @@ const createUniversitySchema = z.object({
   name: z.string().min(1).max(200),
   slug: z.string().min(1).max(200).regex(/^[a-z0-9-]+$/),
   location: z.string().optional(),
-  website: z.string().url().optional().or(z.literal("")),
-  description: z.string().max(5000).optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -43,8 +41,6 @@ export async function POST(request: NextRequest) {
         name: data.name,
         slug: data.slug,
         location: data.location || null,
-        website: data.website || null,
-        description: data.description || null,
       },
     });
 
