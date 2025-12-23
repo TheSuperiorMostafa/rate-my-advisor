@@ -62,6 +62,49 @@ export async function isAdmin(request: NextRequest): Promise<boolean> {
 }
 
 /**
+ * Get session in server components (for pages)
+ * Use this in server components instead of getSession
+ */
+export async function getServerSession() {
+  const { headers } = await import("next/headers");
+  const headersList = await headers();
+  const { getToken } = await import("next-auth/jwt");
+  
+  const token = await getToken({
+    req: {
+      headers: Object.fromEntries(headersList.entries()),
+    } as any,
+    secret: process.env.NEXTAUTH_SECRET,
+  });
+
+  if (!token?.sub) return null;
+
+  // Get user from database to include role and eduVerified
+  const user = await prisma.user.findUnique({
+    where: { id: token.sub },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      role: true,
+      eduVerified: true,
+    },
+  });
+
+  if (!user) return null;
+
+  return {
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role as "USER" | "ADMIN",
+      eduVerified: user.eduVerified,
+    },
+  };
+}
+
+/**
  * Get client IP address for rate limiting
  */
 export function getClientIP(request: NextRequest): string {

@@ -1,8 +1,7 @@
 import { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { getSession } from "@/lib/auth";
+import { getServerSession } from "@/lib/auth";
 import { ModerationDashboard } from "@/components/moderation/ModerationDashboard";
-import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = {
   title: "Moderation Dashboard - Rate My Advisor",
@@ -13,7 +12,7 @@ export const metadata: Metadata = {
 const ALLOWED_MODERATOR_EMAILS = ["superiormostafa@gmail.com"];
 
 export default async function ModerationPage() {
-  const session = await getSession();
+  const session = await getServerSession();
 
   // Check if user is signed in
   if (!session?.user?.email) {
