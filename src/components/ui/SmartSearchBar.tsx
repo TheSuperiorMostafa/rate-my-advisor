@@ -49,7 +49,7 @@ export function SmartSearchBar({
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const debounceTimer = useRef<NodeJS.Timeout>();
+  const debounceTimer = useRef<NodeJS.Timeout | undefined>(undefined);
 
   // Auto focus
   useEffect(() => {

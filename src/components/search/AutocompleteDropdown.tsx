@@ -62,15 +62,18 @@ export function AutocompleteDropdown({
   context,
 }: AutocompleteDropdownProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const selectedRef = useRef<HTMLAnchorElement>(null);
+  const selectedRef = useRef<HTMLDivElement>(null);
 
   // Scroll selected item into view
   useEffect(() => {
     if (selectedRef.current) {
-      selectedRef.current.scrollIntoView({
-        block: "nearest",
-        behavior: "smooth",
-      });
+      const linkElement = selectedRef.current.querySelector('a');
+      if (linkElement) {
+        linkElement.scrollIntoView({
+          block: "nearest",
+          behavior: "smooth",
+        });
+      }
     }
   }, [selectedIndex]);
 

@@ -86,7 +86,7 @@ npx prisma db seed
 ✅ All pages and routes
 ✅ API endpoints
 ✅ Authentication (NextAuth v5)
-✅ Admin moderation dashboard
+✅ Admin n dashboard
 ✅ Review submission flow
 ✅ Legal pages
 ✅ Abuse prevention

@@ -65,7 +65,7 @@ export function NavAutocompleteDropdown({
   onUniversitySelect,
 }: NavAutocompleteDropdownProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const selectedRef = useRef<HTMLAnchorElement>(null);
+  const selectedRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
   const handleResultClick = (href: string, isUniversity: boolean, university?: any) => {
@@ -79,10 +79,13 @@ export function NavAutocompleteDropdown({
   // Scroll selected item into view
   useEffect(() => {
     if (selectedRef.current) {
-      selectedRef.current.scrollIntoView({
-        block: "nearest",
-        behavior: "smooth",
-      });
+      const linkElement = selectedRef.current.querySelector('a');
+      if (linkElement) {
+        linkElement.scrollIntoView({
+          block: "nearest",
+          behavior: "smooth",
+        });
+      }
     }
   }, [selectedIndex]);
 

@@ -32,15 +32,14 @@ export function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthModalProp
       
       // Sign in with Google - will redirect to Google OAuth
       // After OAuth, user will be redirected back to callbackUrl
-      const result = await signIn("google", { 
+      // When redirect: true, signIn doesn't return, so we don't check for errors here
+      await signIn("google", { 
         callbackUrl: "/",
         redirect: true, // Allow redirect to Google
       });
       
-      // If there's an error, it will be caught below
-      if (result?.error) {
-        throw new Error(result.error);
-      }
+      // This code won't execute if redirect is successful
+      setIsLoading(false);
     } catch (err) {
       console.error("Auth error:", err);
       setErrorMessage(

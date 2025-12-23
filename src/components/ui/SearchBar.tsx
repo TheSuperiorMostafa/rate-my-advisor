@@ -26,7 +26,7 @@ export function SearchBar({
   const router = useRouter();
   const searchParams = useSearchParams();
   const inputRef = useRef<HTMLInputElement>(null);
-  const debounceTimer = useRef<NodeJS.Timeout>();
+  const debounceTimer = useRef<NodeJS.Timeout | undefined>(undefined);
 
   // Sync with URL params
   useEffect(() => {
