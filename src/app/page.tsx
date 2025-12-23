@@ -1,4 +1,5 @@
 import { AutocompleteSearch } from "@/components/search/AutocompleteSearch";
+import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/button";
 import { Metadata } from "next";
 import Link from "next/link";
