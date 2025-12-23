@@ -1,8 +1,10 @@
 import type { NextAuthConfig } from "next-auth";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import GoogleProvider from "next-auth/providers/google";
+import EmailProvider from "next-auth/providers/email";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "./prisma";
+import { Resend } from "resend";
 
 // Validate OAuth configuration
 const googleClientId = process.env.GOOGLE_CLIENT_ID || "";
@@ -52,6 +54,76 @@ export const authOptions: NextAuthConfig = {
           access_type: "offline",
           response_type: "code",
         },
+      },
+    }),
+    EmailProvider({
+      server: process.env.RESEND_API_KEY
+        ? undefined // Use Resend API if API key is set
+        : {
+            // Fallback to SMTP if Resend not configured
+            host: process.env.SMTP_HOST,
+            port: Number(process.env.SMTP_PORT) || 587,
+            auth: {
+              user: process.env.SMTP_USER,
+              pass: process.env.SMTP_PASSWORD,
+            },
+          },
+      from: process.env.EMAIL_FROM || "onboarding@resend.dev",
+      // Custom email sending with Resend API (better than SMTP)
+      async sendVerificationRequest({ identifier: email, url, provider }) {
+        const { host } = new URL(process.env.NEXTAUTH_URL || "http://localhost:3000");
+        
+        console.log(`📧 Sending magic link to ${email}`);
+        
+        // Use Resend API if available (better than SMTP)
+        if (process.env.RESEND_API_KEY) {
+          try {
+            const resend = new Resend(process.env.RESEND_API_KEY);
+            
+            await resend.emails.send({
+              from: process.env.EMAIL_FROM || "onboarding@resend.dev",
+              to: email,
+              subject: `Sign in to ${host}`,
+              html: `
+                <!DOCTYPE html>
+                <html>
+                  <head>
+                    <meta charset="utf-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                  </head>
+                  <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+                    <div style="background: linear-gradient(135deg, #5B2D8B 0%, #7C3AED 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+                      <h1 style="color: white; margin: 0; font-size: 24px;">Rate My Advisor</h1>
+                    </div>
+                    <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
+                      <h2 style="color: #1f2937; margin-top: 0;">Sign in to your account</h2>
+                      <p style="color: #6b7280;">Click the button below to sign in to Rate My Advisor. This link will expire in 24 hours.</p>
+                      <div style="text-align: center; margin: 30px 0;">
+                        <a href="${url}" style="display: inline-block; background: #5B2D8B; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">Sign In</a>
+                      </div>
+                      <p style="color: #6b7280; font-size: 14px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+                        If you didn't request this email, you can safely ignore it.
+                      </p>
+                      <p style="color: #9ca3af; font-size: 12px; margin-top: 20px;">
+                        Or copy and paste this link into your browser:<br>
+                        <a href="${url}" style="color: #5B2D8B; word-break: break-all;">${url}</a>
+                      </p>
+                    </div>
+                  </body>
+                </html>
+              `,
+              text: `Sign in to ${host}\n\nClick this link to sign in:\n${url}\n\nThis link will expire in 24 hours.\n\nIf you didn't request this email, you can safely ignore it.`,
+            });
+            
+            console.log(`✅ Magic link sent via Resend to ${email}`);
+          } catch (error) {
+            console.error("❌ Resend email error:", error);
+            throw error;
+          }
+        } else {
+          // Fallback: NextAuth will use SMTP or default email
+          console.log(`📧 Using SMTP/default email for ${email}`);
+        }
       },
     }),
     CredentialsProvider({
@@ -231,6 +303,11 @@ export const authOptions: NextAuthConfig = {
         
         // Allow sign in for Google OAuth
         if (account?.provider === "google") {
+          return true;
+        }
+        
+        // Allow email magic link
+        if (account?.provider === "email") {
           return true;
         }
         

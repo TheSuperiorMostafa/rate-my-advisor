@@ -8,7 +8,7 @@ import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { GraduationCap, ArrowLeft } from "lucide-react";
+import { GraduationCap, ArrowLeft, Mail } from "lucide-react";
 
 export default function SignInPage() {
   const router = useRouter();
@@ -18,7 +18,10 @@ export default function SignInPage() {
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [email, setEmail] = useState("");
+  const [emailSent, setEmailSent] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [authMethod, setAuthMethod] = useState<"google" | "email" | "admin">("google");
 
   useEffect(() => {
     if (error) {
@@ -47,10 +50,43 @@ export default function SignInPage() {
   const handleGoogleSignIn = async () => {
     try {
       setErrorMessage(null);
+      setAuthMethod("google");
       await signIn("google", { callbackUrl: "/" });
     } catch (err) {
       console.error("Sign in error:", err);
       setErrorMessage("Failed to initiate sign-in. Please try again.");
+    }
+  };
+
+  const handleEmailSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim()) {
+      setErrorMessage("Please enter your email address");
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setErrorMessage(null);
+      setAuthMethod("email");
+      
+      const result = await signIn("email", {
+        email: email.trim(),
+        callbackUrl: "/",
+        redirect: false,
+      });
+
+      if (result?.error) {
+        setErrorMessage(result.error);
+        setIsLoading(false);
+      } else {
+        setEmailSent(true);
+        setIsLoading(false);
+      }
+    } catch (err) {
+      console.error("Email sign in error:", err);
+      setErrorMessage("Failed to send magic link. Please try again.");
+      setIsLoading(false);
     }
   };
 
@@ -122,10 +158,33 @@ export default function SignInPage() {
             </p>
           </div>
           <div className="space-y-4">
-            {!showAdminLogin ? (
+            {emailSent ? (
+              <div className="p-6 bg-green-50 border border-green-200 rounded-lg text-center">
+                <Mail className="w-12 h-12 text-green-600 mx-auto mb-3" />
+                <h3 className="text-lg font-semibold text-green-900 mb-2">Check your email</h3>
+                <p className="text-sm text-green-800 mb-2">
+                  We've sent a magic link to <strong>{email}</strong>
+                </p>
+                <p className="text-xs text-green-700 mb-4">
+                  Click the link in the email to sign in. The link will expire in 24 hours.
+                </p>
+                <Button
+                  onClick={() => {
+                    setEmailSent(false);
+                    setEmail("");
+                  }}
+                  variant="outline"
+                  size="sm"
+                >
+                  Use a different email
+                </Button>
+              </div>
+            ) : !showAdminLogin ? (
               <>
                 <Button
                   onClick={handleGoogleSignIn}
+                  disabled={isLoading && authMethod !== "google"}
+                  isLoading={isLoading && authMethod === "google"}
                   size="lg"
                   className="w-full flex items-center justify-center gap-3"
                 >
@@ -149,6 +208,45 @@ export default function SignInPage() {
                   </svg>
                   Sign in with Google
                 </Button>
+
+                {/* Divider */}
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-300"></div>
+                  </div>
+                  <div className="relative flex justify-center text-sm">
+                    <span className="px-2 bg-white text-gray-500">Or</span>
+                  </div>
+                </div>
+
+                {/* Email Sign In Form */}
+                <form onSubmit={handleEmailSignIn} className="space-y-4">
+                  <div>
+                    <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+                      Email address
+                    </label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      required
+                      disabled={isLoading}
+                      className="w-full"
+                    />
+                  </div>
+                  <Button
+                    type="submit"
+                    disabled={isLoading || !email.trim()}
+                    isLoading={isLoading && authMethod === "email"}
+                    size="lg"
+                    className="w-full flex items-center justify-center gap-2"
+                  >
+                    <Mail className="w-5 h-5" />
+                    {isLoading && authMethod === "email" ? "Sending..." : "Send magic link"}
+                  </Button>
+                </form>
                 <div className="relative">
                   <div className="absolute inset-0 flex items-center">
                     <div className="w-full border-t border-gray-300" />
