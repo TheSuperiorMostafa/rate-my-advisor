@@ -2,7 +2,20 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { successResponse, errorResponse, unauthorizedResponse, rateLimitResponse } from "@/lib/api-response";
 import { rateLimitMiddleware } from "@/lib/rate-limit";
-import { isAdmin } from "@/lib/auth";
+import { isAdmin, getSession } from "@/lib/auth";
+
+// Allowed emails for moderation (temporary until OAuth is fixed)
+const ALLOWED_MODERATOR_EMAILS = ["superiormostafa@gmail.com"];
+
+async function canModerate(request: NextRequest): Promise<boolean> {
+  const session = await getSession(request);
+  if (!session?.user?.email) return false;
+  
+  const isAllowedEmail = ALLOWED_MODERATOR_EMAILS.includes(session.user.email);
+  const admin = await isAdmin(request);
+  
+  return isAllowedEmail || admin;
+}
 
 export async function GET(request: NextRequest) {
   // Rate limiting
@@ -12,10 +25,9 @@ export async function GET(request: NextRequest) {
   });
   if (rateLimit) return rateLimit;
 
-  // Check admin access
-  const admin = await isAdmin(request);
-  if (!admin) {
-    return unauthorizedResponse("Admin access required");
+  // Check moderation access
+  if (!(await canModerate(request))) {
+    return unauthorizedResponse("Moderation access required");
   }
 
   try {

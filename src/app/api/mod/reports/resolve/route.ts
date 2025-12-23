@@ -19,10 +19,23 @@ export async function POST(request: NextRequest) {
   });
   if (rateLimit) return rateLimit;
 
-  // Check admin access
-  const admin = await isAdmin(request);
-  if (!admin) {
-    return unauthorizedResponse("Admin access required");
+  // Allowed emails for moderation (temporary until OAuth is fixed)
+  const ALLOWED_MODERATOR_EMAILS = ["superiormostafa@gmail.com"];
+
+  async function canModerate(request: NextRequest): Promise<boolean> {
+    const { getSession } = await import("@/lib/auth");
+    const session = await getSession(request);
+    if (!session?.user?.email) return false;
+    
+    const isAllowedEmail = ALLOWED_MODERATOR_EMAILS.includes(session.user.email);
+    const admin = await isAdmin(request);
+    
+    return isAllowedEmail || admin;
+  }
+
+  // Check moderation access
+  if (!(await canModerate(request))) {
+    return unauthorizedResponse("Moderation access required");
   }
 
   try {
