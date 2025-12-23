@@ -1,6 +1,7 @@
 import type { NextAuthConfig } from "next-auth";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import GoogleProvider from "next-auth/providers/google";
+import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "./prisma";
 
 export const authOptions: NextAuthConfig = {
@@ -12,14 +13,77 @@ export const authOptions: NextAuthConfig = {
       clientId: process.env.GOOGLE_CLIENT_ID || "",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
     }),
+    CredentialsProvider({
+      name: "Admin Login",
+      credentials: {
+        username: { label: "Username", type: "text" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        if (!credentials?.username || !credentials?.password) {
+          return null;
+        }
+
+        // Check if credentials match admin env vars
+        const adminUsername = process.env.ADMIN_USERNAME || "admin";
+        const adminPassword = process.env.ADMIN_PASSWORD || "";
+
+        if (credentials.username === adminUsername && credentials.password === adminPassword) {
+          // Find or create admin user
+          let user = await prisma.user.findUnique({
+            where: { email: `${adminUsername}@admin.local` },
+          });
+
+          if (!user) {
+            // Create admin user if doesn't exist
+            user = await prisma.user.create({
+              data: {
+                email: `${adminUsername}@admin.local`,
+                name: "Admin",
+                role: "ADMIN",
+                emailVerified: new Date(),
+              },
+            });
+          } else if (user.role !== "ADMIN") {
+            // Update to admin if not already
+            user = await prisma.user.update({
+              where: { id: user.id },
+              data: { role: "ADMIN" },
+            });
+          }
+
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+            eduVerified: user.eduVerified,
+          };
+        }
+
+        return null;
+      },
+    }),
   ],
   pages: {
     signIn: "/auth/signin",
     verifyRequest: "/auth/verify-email",
   },
   callbacks: {
-    async session({ session, user }) {
-      // With database sessions, user is available
+    async session({ session, user, token }) {
+      // Handle credentials provider (no user object)
+      if (token && !user) {
+        session.user = {
+          id: token.sub || "",
+          email: token.email || "",
+          name: token.name || "",
+          role: (token.role as "USER" | "ADMIN") || "USER",
+          eduVerified: token.eduVerified as boolean || false,
+        };
+        return session;
+      }
+
+      // Handle database sessions (Google OAuth)
       if (session.user && user) {
         try {
           // Get user from database to include role
@@ -57,6 +121,17 @@ export const authOptions: NextAuthConfig = {
       }
       return session;
     },
+    async jwt({ token, user, account }) {
+      // For credentials provider, user is passed directly
+      if (user) {
+        token.sub = user.id;
+        token.email = user.email;
+        token.name = user.name;
+        token.role = user.role;
+        token.eduVerified = user.eduVerified;
+      }
+      return token;
+    },
     async signIn({ user, account, profile }) {
       try {
         console.log("✅ Sign in attempt:", { userId: user?.id, email: user?.email });
@@ -68,7 +143,7 @@ export const authOptions: NextAuthConfig = {
     },
   },
   session: {
-    strategy: "database",
+    strategy: "jwt", // Changed to JWT to support credentials provider
   },
 };
 
