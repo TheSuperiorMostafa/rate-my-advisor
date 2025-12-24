@@ -27,6 +27,13 @@ export async function onRequest(context: any) {
       // But set it to the original domain for OAuth callbacks
       headers.set('Host', originalHost);
       
+      // Ensure cookies are forwarded - critical for OAuth PKCE
+      // Cookies from the browser need to be sent to Vercel
+      const cookieHeader = request.headers.get('Cookie');
+      if (cookieHeader) {
+        headers.set('Cookie', cookieHeader);
+      }
+      
       const response = await fetch(vercelUrl, {
         method: request.method,
         headers: headers,
