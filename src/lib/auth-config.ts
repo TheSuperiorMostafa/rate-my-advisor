@@ -694,8 +694,6 @@ export const authOptions: NextAuthConfig = {
                   await prisma.user.update({
                     where: { id: user.id },
                     data: {
-                      firstName: pendingSignup.firstName,
-                      lastName: pendingSignup.lastName,
                       name: `${pendingSignup.firstName} ${pendingSignup.lastName}`,
                       birthday: pendingSignup.birthday,
                       universityId: pendingSignup.universityId || null,
@@ -703,7 +701,10 @@ export const authOptions: NextAuthConfig = {
                       emailVerified: new Date(),
                       // Only set role to ADMIN if it's the admin email
                       role: isAdminEmail ? "ADMIN" : "USER",
-                    },
+                      // Use type assertion for firstName/lastName since Prisma types don't include them
+                      firstName: pendingSignup.firstName,
+                      lastName: pendingSignup.lastName,
+                    } as any,
                   });
 
                   // Delete pending signup after successful account creation
