@@ -138,7 +138,8 @@ const customAdapter: Adapter = {
 // Strip quotes if present (some .env files add quotes)
 const googleClientId = (process.env.GOOGLE_CLIENT_ID || "").replace(/^["']|["']$/g, "");
 const googleClientSecret = (process.env.GOOGLE_CLIENT_SECRET || "").replace(/^["']|["']$/g, "");
-const nextAuthUrl = process.env.NEXTAUTH_URL || "";
+// Trim NEXTAUTH_URL to remove any trailing newlines or whitespace
+const nextAuthUrl = (process.env.NEXTAUTH_URL || "").trim();
 
 // Log configuration in development for debugging
 if (process.env.NODE_ENV === "development") {
@@ -239,7 +240,7 @@ const createResendProvider = () => {
         throw new Error(errorMsg);
       }
 
-      const { host } = new URL(process.env.NEXTAUTH_URL || "http://localhost:3000");
+        const { host } = new URL((process.env.NEXTAUTH_URL || "http://localhost:3000").trim());
       const emailFrom = process.env.EMAIL_FROM || "onboarding@resend.dev";
       
       console.log(`📧 Sending magic link to ${email} via Resend`);
@@ -625,8 +626,8 @@ export const authOptions: NextAuthConfig = {
       }
     },
     async redirect({ url, baseUrl }) {
-      // Use NEXTAUTH_URL if set, otherwise use baseUrl
-      const redirectBaseUrl = nextAuthUrl || baseUrl;
+      // Use NEXTAUTH_URL if set, otherwise use baseUrl (trim to remove any newlines)
+      const redirectBaseUrl = (nextAuthUrl || baseUrl).trim();
       
       // Log for debugging in development
       if (process.env.NODE_ENV === "development") {
