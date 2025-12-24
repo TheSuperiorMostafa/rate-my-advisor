@@ -637,18 +637,17 @@ export const authOptions: NextAuthConfig = {
       }
     },
     async redirect({ url, baseUrl }) {
-      // Use NEXTAUTH_URL if set, otherwise use baseUrl
-      const redirectBaseUrl = nextAuthUrl || baseUrl;
+      // Get NEXTAUTH_URL and trim it to remove any newlines or whitespace
+      const nextAuthUrlTrimmed = (process.env.NEXTAUTH_URL || "").trim();
+      const redirectBaseUrl = nextAuthUrlTrimmed || baseUrl;
       
-      // Log for debugging in development
-      if (process.env.NODE_ENV === "development") {
-        console.log("🔍 Redirect callback:", { url, baseUrl, redirectBaseUrl, nextAuthUrl });
-      }
+      // Log for debugging
       if (process.env.NODE_ENV === "production") {
         console.log("🔀 Redirect callback:", {
           url,
           baseUrl,
           nextAuthUrl: process.env.NEXTAUTH_URL,
+          nextAuthUrlTrimmed,
           using: redirectBaseUrl,
         });
       }
@@ -664,15 +663,21 @@ export const authOptions: NextAuthConfig = {
       
       try {
         const urlObj = new URL(url);
-        if (urlObj.origin === redirectBaseUrl || urlObj.origin === baseUrl) {
+        // Compare origins (trimmed)
+        const redirectOrigin = redirectBaseUrl.replace(/\/$/, ""); // Remove trailing slash
+        const baseUrlOrigin = baseUrl.replace(/\/$/, ""); // Remove trailing slash
+        const urlOrigin = urlObj.origin;
+        
+        if (urlOrigin === redirectOrigin || urlOrigin === baseUrlOrigin) {
           // Don't redirect to auth pages after successful sign-in
           if (urlObj.pathname.includes("/auth/signin") || urlObj.pathname.includes("/auth/signup")) {
             return `${redirectBaseUrl}/`;
           }
           return url;
         }
-      } catch {
+      } catch (urlError) {
         // Invalid URL, use baseUrl
+        console.error("❌ Error parsing redirect URL:", urlError);
       }
       
       return redirectBaseUrl;
