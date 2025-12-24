@@ -420,7 +420,9 @@ export const authOptions: NextAuthConfig = {
   ...(process.env.NEXTAUTH_URL && {
     basePath: undefined, // Use default /api/auth
   }),
-  // Let NextAuth handle cookies automatically - custom config was causing PKCE issues
+  // Configure cookies with proper domain for Cloudflare proxy setup
+  // The cookie domain must match the custom domain, not Vercel domain
+  useSecureCookies: process.env.NODE_ENV === "production",
   providers: [
     // Only add GoogleProvider if credentials are available
     ...(googleClientId && googleClientSecret ? [

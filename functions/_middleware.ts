@@ -48,8 +48,34 @@ export async function onRequest(context: any) {
       responseHeaders.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie, Set-Cookie');
       responseHeaders.set('Access-Control-Allow-Credentials', 'true');
       
-      // Preserve Set-Cookie headers from Vercel for OAuth sessions
-      // These are already in response.headers, so they'll be forwarded
+      // Fix cookie domain for OAuth - ensure cookies work across Cloudflare proxy
+      // Cookies set by Vercel need to be accessible from Cloudflare domain
+      const setCookieHeaders = responseHeaders.getSetCookie();
+      if (setCookieHeaders && setCookieHeaders.length > 0) {
+        responseHeaders.delete('Set-Cookie');
+        const customDomain = originalHost.includes('rate-my-advisor.com') 
+          ? 'rate-my-advisor.com' 
+          : originalHost.split(':')[0];
+        
+        setCookieHeaders.forEach(cookie => {
+          let fixedCookie = cookie;
+          
+          // Remove any existing Domain= setting
+          fixedCookie = fixedCookie.replace(/;\s*Domain=[^;]+/gi, '');
+          
+          // Remove any Vercel domain references
+          fixedCookie = fixedCookie.replace(/Domain=rate-my-advisor[^;]+/gi, '');
+          
+          // Add correct domain for custom domain
+          if (customDomain.includes('rate-my-advisor.com')) {
+            // For custom domain, set domain explicitly
+            fixedCookie = `${fixedCookie}; Domain=${customDomain}`;
+          }
+          // If not custom domain, let it default (no Domain= means request domain)
+          
+          responseHeaders.append('Set-Cookie', fixedCookie);
+        });
+      }
       
       return new Response(response.body, {
         status: response.status,
