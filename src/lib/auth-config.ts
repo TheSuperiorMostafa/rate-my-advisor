@@ -234,9 +234,16 @@ export const authOptions: NextAuthConfig = {
       apiKey: resendApiKey,
       from: emailFrom,
       async sendVerificationRequest({ identifier: email, url }) {
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/93991747-0315-454c-82ac-ac2d2829f2a8',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth-config.ts:236',message:'sendVerificationRequest called',data:{email,hasApiKey:!!process.env.RESEND_API_KEY,hasEmailFrom:!!process.env.EMAIL_FROM,nextAuthUrl:process.env.NEXTAUTH_URL},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+        
         // Check if Resend API key is configured
         if (!process.env.RESEND_API_KEY) {
           const errorMsg = "RESEND_API_KEY is not configured. Please set RESEND_API_KEY in your environment variables.";
+          // #region agent log
+          fetch('http://127.0.0.1:7243/ingest/93991747-0315-454c-82ac-ac2d2829f2a8',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth-config.ts:240',message:'RESEND_API_KEY missing',data:{email},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+          // #endregion
           console.error(`❌ ${errorMsg}`);
           throw new Error(errorMsg);
         }
@@ -252,6 +259,9 @@ export const authOptions: NextAuthConfig = {
         });
         
         try {
+          // #region agent log
+          fetch('http://127.0.0.1:7243/ingest/93991747-0315-454c-82ac-ac2d2829f2a8',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth-config.ts:254',message:'Creating Resend instance',data:{email,emailFrom,apiKeyLength:process.env.RESEND_API_KEY?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+          // #endregion
           const resend = new Resend(process.env.RESEND_API_KEY);
           
           const emailHtml = `
@@ -288,6 +298,9 @@ export const authOptions: NextAuthConfig = {
           console.log(`📤 Sending email via Resend to ${email} from ${emailFrom}`);
           console.log(`🔗 Magic link URL: ${url}`);
           
+          // #region agent log
+          fetch('http://127.0.0.1:7243/ingest/93991747-0315-454c-82ac-ac2d2829f2a8',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth-config.ts:291',message:'Calling resend.emails.send',data:{email,emailFrom,host},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+          // #endregion
           const result = await resend.emails.send({
             from: emailFrom,
             to: email,
@@ -296,9 +309,16 @@ export const authOptions: NextAuthConfig = {
             text: emailText,
           });
           
+          // #region agent log
+          fetch('http://127.0.0.1:7243/ingest/93991747-0315-454c-82ac-ac2d2829f2a8',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth-config.ts:300',message:'Resend API response',data:{email,hasError:!!result.error,hasData:!!result.data,errorMessage:result.error?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+          // #endregion
+          
           // Resend API returns { data: { id: string } } on success
           // or { error: { message: string, name: string } } on error
           if (result.error) {
+            // #region agent log
+            fetch('http://127.0.0.1:7243/ingest/93991747-0315-454c-82ac-ac2d2829f2a8',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth-config.ts:304',message:'Resend API error',data:{email,error:result.error,errorMessage:result.error?.message,errorName:result.error?.name},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+            // #endregion
             console.error("❌ Resend API error:", result.error);
             console.error("   Error details:", JSON.stringify(result.error, null, 2));
             throw new Error(`Failed to send email via Resend: ${result.error.message || JSON.stringify(result.error)}`);
@@ -318,6 +338,9 @@ export const authOptions: NextAuthConfig = {
             console.warn(`   Full result:`, JSON.stringify(result, null, 2));
           }
         } catch (error) {
+          // #region agent log
+          fetch('http://127.0.0.1:7243/ingest/93991747-0315-454c-82ac-ac2d2829f2a8',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth-config.ts:320',message:'Resend email catch block',data:{email,errorMessage:error instanceof Error ? error.message : String(error),errorStack:error instanceof Error ? error.stack : undefined,errorType:error?.constructor?.name},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+          // #endregion
           console.error("❌ Resend email error:", error);
           // Log detailed error for debugging
           if (error instanceof Error) {
