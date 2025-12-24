@@ -192,20 +192,31 @@ if (process.env.NODE_ENV === "production") {
 
 // Validate Resend configuration before creating provider
 // Use runtime check - environment variables are available at runtime in Vercel
-const getResendApiKey = () => process.env.RESEND_API_KEY?.trim() || "";
-const getEmailFrom = () => (process.env.EMAIL_FROM || "onboarding@resend.dev").trim();
+const getResendApiKey = () => {
+  const key = process.env.RESEND_API_KEY?.trim();
+  return key || "";
+};
+
+const getEmailFrom = () => {
+  const from = process.env.EMAIL_FROM?.trim();
+  return from || "onboarding@resend.dev";
+};
+
+// Get values at module load for provider initialization
+const resendApiKey = getResendApiKey();
+const emailFrom = getEmailFrom();
 
 // Log at module load (for debugging)
 if (process.env.NODE_ENV === "production") {
-  const apiKey = getResendApiKey();
-  const emailFrom = getEmailFrom();
   console.log("🔍 Resend Configuration Check (Module Load):");
-  console.log("   RESEND_API_KEY:", apiKey ? `${apiKey.substring(0, 10)}...` : "❌ NOT SET");
+  console.log("   RESEND_API_KEY:", resendApiKey ? `${resendApiKey.substring(0, 10)}...` : "❌ NOT SET");
   console.log("   EMAIL_FROM:", emailFrom || "❌ NOT SET");
   
-  if (!apiKey) {
+  if (!resendApiKey) {
     console.error("❌ RESEND_API_KEY is not set! Email authentication will not work.");
     console.error("   Please set RESEND_API_KEY in your environment variables.");
+  } else {
+    console.log("✅ ResendProvider will be initialized with API key");
   }
 }
 
@@ -238,12 +249,11 @@ export const authOptions: NextAuthConfig = {
       allowDangerousEmailAccountLinking: true,
     }),
     // Use ResendProvider with custom sendVerificationRequest to ensure emails are sent
-    // Always add ResendProvider - validate API key inside sendVerificationRequest
-    // This prevents "Configuration" error when provider is missing
-    ResendProvider({
+    // Only add ResendProvider if API key is available - prevents initialization errors
+    ...(resendApiKey ? [ResendProvider({
       id: "email", // Explicitly set ID to "email" so signIn("email") works
-      apiKey: getResendApiKey() || "dummy-key-will-be-validated-in-sendVerificationRequest",
-      from: getEmailFrom(),
+      apiKey: resendApiKey,
+      from: emailFrom,
       async sendVerificationRequest({ identifier: email, url }) {
         // #region agent log
         fetch('http://127.0.0.1:7243/ingest/93991747-0315-454c-82ac-ac2d2829f2a8',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth-config.ts:236',message:'sendVerificationRequest called',data:{email,hasApiKey:!!process.env.RESEND_API_KEY,hasEmailFrom:!!process.env.EMAIL_FROM,nextAuthUrl:process.env.NEXTAUTH_URL},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
@@ -362,7 +372,7 @@ export const authOptions: NextAuthConfig = {
           throw error;
         }
       },
-    }),
+    })] : []),
   ],
   pages: {
     signIn: "/auth/signin",
