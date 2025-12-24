@@ -571,6 +571,11 @@ export const authOptions: NextAuthConfig = {
             where: { id: user.id },
           });
           if (dbUser) {
+            console.log("✅ JWT callback - found user in DB:", {
+              id: dbUser.id,
+              email: dbUser.email,
+              role: dbUser.role,
+            });
             token.role = dbUser.role as "USER" | "ADMIN";
             token.eduVerified = dbUser.eduVerified;
             const firstName = (dbUser as any).firstName;
@@ -578,10 +583,28 @@ export const authOptions: NextAuthConfig = {
             if (firstName && lastName && !token.name) {
               token.name = `${firstName} ${lastName}`;
             }
+          } else {
+            console.warn("⚠️ JWT callback - user not found in DB:", user.id);
           }
         } catch (error) {
           console.error("❌ Error fetching user in JWT callback:", error);
         }
+        
+        console.log("✅ JWT callback - returning token:", {
+          sub: token.sub,
+          email: token.email,
+          role: token.role,
+        });
+        return token;
+      }
+      
+      // If token already exists but no user (subsequent requests after OAuth)
+      if (token.sub && !user && !account) {
+        console.log("🔄 JWT callback - refreshing existing token:", {
+          sub: token.sub,
+          email: token.email,
+        });
+        // Token already has the data, just return it
         return token;
       }
 
