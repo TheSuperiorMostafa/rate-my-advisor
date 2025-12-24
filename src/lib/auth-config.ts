@@ -486,6 +486,8 @@ export const authOptions: NextAuthConfig = {
                   id: true,
                   email: true,
                   name: true,
+                  firstName: true,
+                  lastName: true,
                   role: true,
                   eduVerified: true,
                 },
@@ -494,8 +496,10 @@ export const authOptions: NextAuthConfig = {
               if (dbUser) {
                 session.user.id = dbUser.id;
                 session.user.email = dbUser.email || session.user.email || "";
-                // Use name if available, otherwise use email prefix
-                session.user.name = dbUser.name || dbUser.email?.split("@")[0] || session.user.name || "";
+                // Use full name if available, otherwise construct from firstName/lastName
+                session.user.name = dbUser.name || (dbUser.firstName && dbUser.lastName 
+                  ? `${dbUser.firstName} ${dbUser.lastName}` 
+                  : dbUser.email?.split("@")[0] || session.user.name || "");
                 session.user.role = dbUser.role as "USER" | "ADMIN";
                 session.user.eduVerified = dbUser.eduVerified;
                 return session;
@@ -537,6 +541,8 @@ export const authOptions: NextAuthConfig = {
                   id: true,
                   email: true,
                   name: true,
+                  firstName: true,
+                  lastName: true,
                   role: true,
                   eduVerified: true,
                 },
@@ -545,8 +551,10 @@ export const authOptions: NextAuthConfig = {
               if (dbUser) {
                 token.sub = dbUser.id;
                 token.email = dbUser.email || "";
-                // Use name if available, otherwise use email prefix
-                token.name = dbUser.name || dbUser.email?.split("@")[0] || "";
+                // Use full name if available, otherwise construct from firstName/lastName
+                token.name = dbUser.name || (dbUser.firstName && dbUser.lastName 
+                  ? `${dbUser.firstName} ${dbUser.lastName}` 
+                  : dbUser.email?.split("@")[0] || "");
                 token.role = dbUser.role as "USER" | "ADMIN";
                 token.eduVerified = dbUser.eduVerified;
                 
