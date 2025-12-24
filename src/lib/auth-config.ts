@@ -21,13 +21,66 @@ try {
 const customAdapter: Adapter = {
   ...(baseAdapter || ({} as Adapter)),
   async getUserByAccount({ providerAccountId, provider }) {
-    if (!baseAdapter?.getUserByAccount) return null;
+    if (!baseAdapter?.getUserByAccount) {
+      // Fallback - query directly without selecting firstName/lastName
+      try {
+        const account = await prisma.account.findUnique({
+          where: {
+            provider_providerAccountId: {
+              provider,
+              providerAccountId,
+            },
+          },
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                name: true,
+                emailVerified: true,
+                image: true,
+                role: true,
+                eduVerified: true,
+              },
+            },
+          },
+        });
+        return account?.user as any || null;
+      } catch (error) {
+        return null;
+      }
+    }
     // First try default behavior
     try {
       return await baseAdapter.getUserByAccount({ providerAccountId, provider });
     } catch (error) {
-      // If not found, return null (user might not have this account linked yet)
-      return null;
+      // Fallback - query directly
+      try {
+        const account = await prisma.account.findUnique({
+          where: {
+            provider_providerAccountId: {
+              provider,
+              providerAccountId,
+            },
+          },
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                name: true,
+                emailVerified: true,
+                image: true,
+                role: true,
+                eduVerified: true,
+              },
+            },
+          },
+        });
+        return account?.user as any || null;
+      } catch (fallbackError) {
+        return null;
+      }
     }
   },
   async getUserByEmail(email) {
@@ -69,8 +122,18 @@ const customAdapter: Adapter = {
     // Check if user with this email already exists
     if (user.email) {
       try {
+        // Don't select firstName/lastName to avoid errors if columns don't exist
         const existingUser = await prisma.user.findUnique({
           where: { email: user.email },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            emailVerified: true,
+            image: true,
+            role: true,
+            eduVerified: true,
+          },
         });
         if (existingUser) {
           console.log("✅ User already exists with email, returning existing user:", user.email);
