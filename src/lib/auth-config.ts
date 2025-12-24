@@ -373,37 +373,44 @@ export const authOptions: NextAuthConfig = {
       // With JWT strategy, we get token instead of user
       if (token && session.user) {
         // Get user from database to include role (for both OAuth and credentials)
+        // But don't fail if database is unavailable
         try {
           const userId = token.sub;
           if (userId) {
-            const dbUser = await prisma.user.findUnique({
-              where: { id: userId },
-              select: {
-                id: true,
-                email: true,
-                name: true,
-                firstName: true,
-                lastName: true,
-                role: true,
-                eduVerified: true,
-              },
-            });
+            try {
+              const dbUser = await prisma.user.findUnique({
+                where: { id: userId },
+                select: {
+                  id: true,
+                  email: true,
+                  name: true,
+                  firstName: true,
+                  lastName: true,
+                  role: true,
+                  eduVerified: true,
+                },
+              });
 
-            if (dbUser) {
-              session.user.id = dbUser.id;
-              session.user.email = dbUser.email || session.user.email || "";
-              // Use full name if available, otherwise construct from firstName/lastName
-              session.user.name = dbUser.name || (dbUser.firstName && dbUser.lastName 
-                ? `${dbUser.firstName} ${dbUser.lastName}` 
-                : dbUser.email?.split("@")[0] || session.user.name || "");
-              session.user.role = dbUser.role as "USER" | "ADMIN";
-              session.user.eduVerified = dbUser.eduVerified;
-            } else {
-              // Fallback to token data
-              session.user.id = userId;
-              session.user.role = (token.role as "USER" | "ADMIN") || "USER";
-              session.user.eduVerified = (token.eduVerified as boolean) || false;
+              if (dbUser) {
+                session.user.id = dbUser.id;
+                session.user.email = dbUser.email || session.user.email || "";
+                // Use full name if available, otherwise construct from firstName/lastName
+                session.user.name = dbUser.name || (dbUser.firstName && dbUser.lastName 
+                  ? `${dbUser.firstName} ${dbUser.lastName}` 
+                  : dbUser.email?.split("@")[0] || session.user.name || "");
+                session.user.role = dbUser.role as "USER" | "ADMIN";
+                session.user.eduVerified = dbUser.eduVerified;
+                return session;
+              }
+            } catch (dbError) {
+              console.error("❌ Database error in session callback:", dbError);
+              // Continue to fallback
             }
+            
+            // Fallback to token data if DB query fails or user not found
+            session.user.id = userId;
+            session.user.role = (token.role as "USER" | "ADMIN") || "USER";
+            session.user.eduVerified = (token.eduVerified as boolean) || false;
           }
         } catch (error) {
           console.error("❌ Error in session callback:", error);
@@ -422,41 +429,49 @@ export const authOptions: NextAuthConfig = {
       // Also fetch on subsequent requests (when user is not present but token.sub exists)
       if (account?.provider === "email" || (!user && token.sub && account?.provider !== "google")) {
         // Fetch from DB to ensure we have the latest user data
+        // But don't fail if database is unavailable
         if (token.sub) {
           try {
-            const dbUser = await prisma.user.findUnique({
-              where: { id: token.sub },
-              select: {
-                id: true,
-                email: true,
-                name: true,
-                firstName: true,
-                lastName: true,
-                role: true,
-                eduVerified: true,
-              },
-            });
-            
-            if (dbUser) {
-              token.sub = dbUser.id;
-              token.email = dbUser.email || "";
-              // Use full name if available, otherwise construct from firstName/lastName
-              token.name = dbUser.name || (dbUser.firstName && dbUser.lastName 
-                ? `${dbUser.firstName} ${dbUser.lastName}` 
-                : dbUser.email?.split("@")[0] || "");
-              token.role = dbUser.role as "USER" | "ADMIN";
-              token.eduVerified = dbUser.eduVerified;
+            try {
+              const dbUser = await prisma.user.findUnique({
+                where: { id: token.sub },
+                select: {
+                  id: true,
+                  email: true,
+                  name: true,
+                  firstName: true,
+                  lastName: true,
+                  role: true,
+                  eduVerified: true,
+                },
+              });
               
-              if (account?.provider === "email") {
-                console.log("📧 Email provider JWT callback - updated token with DB data:", {
-                  userId: dbUser.id,
-                  email: dbUser.email,
-                  name: token.name,
-                });
+              if (dbUser) {
+                token.sub = dbUser.id;
+                token.email = dbUser.email || "";
+                // Use full name if available, otherwise construct from firstName/lastName
+                token.name = dbUser.name || (dbUser.firstName && dbUser.lastName 
+                  ? `${dbUser.firstName} ${dbUser.lastName}` 
+                  : dbUser.email?.split("@")[0] || "");
+                token.role = dbUser.role as "USER" | "ADMIN";
+                token.eduVerified = dbUser.eduVerified;
+                
+                if (account?.provider === "email") {
+                  console.log("📧 Email provider JWT callback - updated token with DB data:", {
+                    userId: dbUser.id,
+                    email: dbUser.email,
+                    name: token.name,
+                  });
+                }
+                return token;
               }
+            } catch (dbError) {
+              console.error("❌ Database error in jwt callback:", dbError);
+              // Continue to return token as-is
             }
           } catch (error) {
-            console.error("Error fetching user in jwt callback (email):", error);
+            console.error("Error in jwt callback (email):", error);
+            // Return token as-is if anything fails
           }
         }
       }
@@ -562,57 +577,66 @@ export const authOptions: NextAuthConfig = {
         // Allow email magic link
         if (account?.provider === "email") {
           // Check for pending signup data and update user
+          // But don't block sign-in if anything fails
           if (user?.email && user?.id) {
             try {
-              // Check database connection first
-              await prisma.$connect();
-              
-              // Try to find pending signup, but don't fail if table doesn't exist
+              // Try to find pending signup, but don't fail if table doesn't exist or DB is unavailable
               let pendingSignup = null;
               try {
                 pendingSignup = await prisma.pendingSignup.findUnique({
                   where: { email: user.email },
                 });
               } catch (dbError: any) {
-                // If table doesn't exist, just log and continue
-                if (dbError?.code === 'P2021' || dbError?.message?.includes('does not exist')) {
-                  console.log("📧 PendingSignup table not found - skipping pending signup data");
+                // If table doesn't exist or DB is unavailable, just log and continue
+                if (dbError?.code === 'P2021' || dbError?.message?.includes('does not exist') || dbError?.message?.includes('Can\'t reach database')) {
+                  console.log("📧 Database unavailable or PendingSignup table not found - skipping pending signup data");
                 } else {
-                  throw dbError; // Re-throw if it's a different error
+                  console.error("❌ Database error checking pending signup:", dbError);
                 }
+                // Don't throw - allow sign-in to proceed
               }
 
               if (pendingSignup) {
-                // Ensure new users are always created as USER (not ADMIN)
-                // Only superiormostafa@gmail.com should be admin
-                const isAdminEmail = user.email === "superiormostafa@gmail.com";
-                
-                // Update user with pending signup data
-                await prisma.user.update({
-                  where: { id: user.id },
-                  data: {
+                try {
+                  // Ensure new users are always created as USER (not ADMIN)
+                  // Only superiormostafa@gmail.com should be admin
+                  const isAdminEmail = user.email === "superiormostafa@gmail.com";
+                  
+                  // Update user with pending signup data
+                  await prisma.user.update({
+                    where: { id: user.id },
+                    data: {
+                      firstName: pendingSignup.firstName,
+                      lastName: pendingSignup.lastName,
+                      name: `${pendingSignup.firstName} ${pendingSignup.lastName}`,
+                      birthday: pendingSignup.birthday,
+                      universityId: pendingSignup.universityId || null,
+                      fieldOfStudy: pendingSignup.fieldOfStudy || null,
+                      emailVerified: new Date(),
+                      // Only set role to ADMIN if it's the admin email
+                      role: isAdminEmail ? "ADMIN" : "USER",
+                    },
+                  });
+
+                  // Delete pending signup after successful account creation
+                  try {
+                    await prisma.pendingSignup.delete({
+                      where: { id: pendingSignup.id },
+                    });
+                  } catch (deleteError) {
+                    console.error("❌ Error deleting pending signup:", deleteError);
+                    // Don't throw - user update succeeded
+                  }
+
+                  console.log("✅ User account created with signup data:", {
+                    email: user.email,
                     firstName: pendingSignup.firstName,
                     lastName: pendingSignup.lastName,
-                    name: `${pendingSignup.firstName} ${pendingSignup.lastName}`,
-                    birthday: pendingSignup.birthday,
-                    universityId: pendingSignup.universityId || null,
-                    fieldOfStudy: pendingSignup.fieldOfStudy || null,
-                    emailVerified: new Date(),
-                    // Only set role to ADMIN if it's the admin email
-                    role: isAdminEmail ? "ADMIN" : "USER",
-                  },
-                });
-
-                // Delete pending signup after successful account creation
-                await prisma.pendingSignup.delete({
-                  where: { id: pendingSignup.id },
-                });
-
-                console.log("✅ User account created with signup data:", {
-                  email: user.email,
-                  firstName: pendingSignup.firstName,
-                  lastName: pendingSignup.lastName,
-                });
+                  });
+                } catch (updateError) {
+                  console.error("❌ Error updating user with pending signup data:", updateError);
+                  // Don't throw - allow sign-in to proceed
+                }
               } else {
                 console.log("📧 Email sign-in - no pending signup found for:", user.email);
               }
