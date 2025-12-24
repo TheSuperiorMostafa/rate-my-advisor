@@ -356,7 +356,11 @@ export const authOptions: NextAuthConfig = {
     }),
     // Use ResendProvider with custom sendVerificationRequest to ensure emails are sent
     // Check at runtime - in Vercel serverless, env vars are available at runtime
-    ...(createResendProvider() ? [createResendProvider()!] : []),
+    // Call createResendProvider once and use the result
+    ...(() => {
+      const provider = createResendProvider();
+      return provider ? [provider] : [];
+    })(),
   ],
   pages: {
     signIn: "/auth/signin",
@@ -557,8 +561,11 @@ export const authOptions: NextAuthConfig = {
         // Allow email magic link
         if (account?.provider === "email") {
           // Check for pending signup data and update user
-          if (user?.email) {
+          if (user?.email && user?.id) {
             try {
+              // Check database connection first
+              await prisma.$connect();
+              
               const pendingSignup = await prisma.pendingSignup.findUnique({
                 where: { email: user.email },
               });
@@ -594,10 +601,17 @@ export const authOptions: NextAuthConfig = {
                   firstName: pendingSignup.firstName,
                   lastName: pendingSignup.lastName,
                 });
+              } else {
+                console.log("📧 Email sign-in - no pending signup found for:", user.email);
               }
             } catch (error) {
-              console.error("❌ Error updating user with pending signup data:", error);
-              // Don't block sign-in if this fails
+              console.error("❌ Error in email sign-in callback:", error);
+              if (error instanceof Error) {
+                console.error("   Error message:", error.message);
+                console.error("   Error stack:", error.stack);
+              }
+              // Don't block sign-in if this fails - allow user to sign in anyway
+              // The pending signup data can be added later if needed
             }
           }
           return true;
