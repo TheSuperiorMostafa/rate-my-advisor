@@ -2,6 +2,7 @@ import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { AutocompleteSearch } from "@/components/search/AutocompleteSearch";
 import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/button";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { GraduationCap } from "lucide-react";
 import Link from "next/link";
@@ -166,15 +167,27 @@ export default async function UniversityPage({ params, searchParams }: PageProps
           </div>
         ) : (
           <Card className="text-center py-12">
-            <GraduationCap className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              {searchQuery ? `No departments found` : "No departments yet"}
-            </h3>
-            <p className="text-gray-600">
-              {searchQuery
-                ? `Try a different search term`
-                : "Departments will appear here once added"}
-            </p>
+            <div className="max-w-md mx-auto">
+              <div className="p-4 bg-[#F5F0FF] rounded-full w-20 h-20 mx-auto mb-4 flex items-center justify-center">
+                <GraduationCap className="w-10 h-10 text-[#5B2D8B]" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                {searchQuery ? `No departments found` : "No departments yet"}
+              </h3>
+              <p className="text-gray-600 mb-6">
+                {searchQuery
+                  ? `Try a different search term, or add a department to our database`
+                  : "Add your departments now to help students find advisors"}
+              </p>
+              <Link href="/submit">
+                <Button size="lg" className="inline-flex items-center">
+                  <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Add a Department
+                </Button>
+              </Link>
+            </div>
           </Card>
         )}
       </div>

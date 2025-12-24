@@ -567,9 +567,20 @@ export const authOptions: NextAuthConfig = {
               // Check database connection first
               await prisma.$connect();
               
-              const pendingSignup = await prisma.pendingSignup.findUnique({
-                where: { email: user.email },
-              });
+              // Try to find pending signup, but don't fail if table doesn't exist
+              let pendingSignup = null;
+              try {
+                pendingSignup = await prisma.pendingSignup.findUnique({
+                  where: { email: user.email },
+                });
+              } catch (dbError: any) {
+                // If table doesn't exist, just log and continue
+                if (dbError?.code === 'P2021' || dbError?.message?.includes('does not exist')) {
+                  console.log("📧 PendingSignup table not found - skipping pending signup data");
+                } else {
+                  throw dbError; // Re-throw if it's a different error
+                }
+              }
 
               if (pendingSignup) {
                 // Ensure new users are always created as USER (not ADMIN)
