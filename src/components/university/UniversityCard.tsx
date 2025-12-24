@@ -1,6 +1,4 @@
-"use client";
-
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { GraduationCap } from "lucide-react";
 
@@ -19,28 +17,10 @@ export function UniversityCard({
   location,
   departmentCount,
 }: UniversityCardProps) {
-  const router = useRouter();
   const href = `/u/${id}/${slug}`;
 
-  const handleClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    router.push(href);
-  };
-
   return (
-    <div
-      onClick={handleClick}
-      className="block cursor-pointer"
-      role="link"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          router.push(href);
-        }
-      }}
-    >
+    <Link href={href} className="block">
       <Card variant="interactive" className="h-full group hover:border-[#5B2D8B]">
         <div className="flex items-start justify-between mb-3">
           <h3 className="text-xl font-semibold text-gray-900 group-hover:text-[#5B2D8B] transition-colors">
@@ -57,7 +37,7 @@ export function UniversityCard({
           </span>
         </div>
       </Card>
-    </div>
+    </Link>
   );
 }
 
