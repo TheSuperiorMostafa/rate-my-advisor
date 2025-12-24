@@ -21,20 +21,22 @@ try {
 const customAdapter: Adapter = {
   ...(baseAdapter || ({} as Adapter)),
   async getUserByAccount({ providerAccountId, provider }) {
+    if (!baseAdapter?.getUserByAccount) return null;
     // First try default behavior
     try {
-      return await baseAdapter.getUserByAccount!({ providerAccountId, provider });
+      return await baseAdapter.getUserByAccount({ providerAccountId, provider });
     } catch (error) {
       // If not found, return null (user might not have this account linked yet)
       return null;
     }
   },
   async getUserByEmail(email) {
+    if (!baseAdapter?.getUserByEmail) return null;
     // For Google OAuth, we need to be careful about account linking
     // If a user exists but doesn't have Google account linked, we should still return them
     // This allows NextAuth to link the account instead of throwing OAuthAccountNotLinked
     try {
-      return await baseAdapter.getUserByEmail!(email);
+      return await baseAdapter.getUserByEmail(email);
     } catch (error) {
       return null;
     }
