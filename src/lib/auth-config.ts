@@ -8,10 +8,18 @@ import { prisma } from "./prisma";
 import { Resend } from "resend";
 
 // Custom adapter wrapper to handle account linking
-const baseAdapter = PrismaAdapter(prisma) as Adapter;
+// Wrap adapter creation in try-catch to prevent initialization errors
+let baseAdapter: Adapter | null = null;
+try {
+  baseAdapter = PrismaAdapter(prisma) as Adapter;
+} catch (error) {
+  console.error("❌ Failed to create PrismaAdapter:", error);
+  // If adapter fails, we'll create a minimal adapter that won't break NextAuth
+}
 
+// Create a safe adapter that handles missing baseAdapter
 const customAdapter: Adapter = {
-  ...baseAdapter,
+  ...(baseAdapter || ({} as Adapter)),
   async getUserByAccount({ providerAccountId, provider }) {
     // First try default behavior
     try {
@@ -32,26 +40,55 @@ const customAdapter: Adapter = {
     }
   },
   async createUser(user) {
+    if (!baseAdapter?.createUser) {
+      // Fallback if adapter not available - create user directly
+      try {
+        const newUser = await prisma.user.create({
+          data: {
+            email: user.email || "",
+            name: user.name || null,
+            emailVerified: user.emailVerified || null,
+            image: user.image || null,
+          },
+        });
+        return {
+          id: newUser.id,
+          email: newUser.email || "",
+          emailVerified: newUser.emailVerified,
+          name: newUser.name,
+          image: newUser.image,
+        } as any;
+      } catch (error) {
+        console.error("❌ Error creating user:", error);
+        throw error;
+      }
+    }
+    
     // Check if user with this email already exists
     if (user.email) {
-      const existingUser = await prisma.user.findUnique({
-        where: { email: user.email },
-      });
-      if (existingUser) {
-        console.log("✅ User already exists with email, returning existing user:", user.email);
-        // Return existing user instead of creating new one
-        // Note: Account linking will be handled by linkAccount method
-        return {
-          id: existingUser.id,
-          email: existingUser.email || "",
-          emailVerified: existingUser.emailVerified,
-          name: existingUser.name,
-          image: existingUser.image,
-        } as any;
+      try {
+        const existingUser = await prisma.user.findUnique({
+          where: { email: user.email },
+        });
+        if (existingUser) {
+          console.log("✅ User already exists with email, returning existing user:", user.email);
+          // Return existing user instead of creating new one
+          // Note: Account linking will be handled by linkAccount method
+          return {
+            id: existingUser.id,
+            email: existingUser.email || "",
+            emailVerified: existingUser.emailVerified,
+            name: existingUser.name,
+            image: existingUser.image,
+          } as any;
+        }
+      } catch (error) {
+        console.error("❌ Error checking existing user:", error);
+        // Continue to create new user
       }
     }
     // Otherwise use default adapter behavior
-    return await baseAdapter.createUser!(user);
+    return await baseAdapter.createUser(user);
   },
   async linkAccount(account) {
     try {
@@ -111,7 +148,11 @@ const customAdapter: Adapter = {
       }
       
       // Use default adapter to create the account link
-      return await baseAdapter.linkAccount!(account);
+      if (baseAdapter?.linkAccount) {
+        return await baseAdapter.linkAccount(account);
+      }
+      // Fallback if adapter not available
+      throw new Error("Adapter linkAccount not available");
     } catch (error: any) {
       // If account already exists (unique constraint), return it
       if (error?.code === "P2002") {
