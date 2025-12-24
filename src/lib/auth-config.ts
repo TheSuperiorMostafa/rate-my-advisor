@@ -477,6 +477,13 @@ export const authOptions: NextAuthConfig = {
   },
   callbacks: {
     async session({ session, token }) {
+      console.log("🔄 Session callback called:", {
+        hasToken: !!token,
+        hasTokenSub: !!token?.sub,
+        tokenEmail: token?.email,
+        hasSessionUser: !!session?.user,
+      });
+      
       // With JWT strategy, we get token instead of user
       if (token && session.user) {
         // Get user from database to include role (for both OAuth and credentials)
@@ -490,6 +497,11 @@ export const authOptions: NextAuthConfig = {
               });
 
               if (dbUser) {
+                console.log("✅ Session callback - found user in DB:", {
+                  id: dbUser.id,
+                  email: dbUser.email,
+                  role: dbUser.role,
+                });
                 session.user.id = dbUser.id;
                 session.user.email = dbUser.email || session.user.email || "";
                 // Use full name if available, otherwise use email prefix
@@ -501,6 +513,8 @@ export const authOptions: NextAuthConfig = {
                 session.user.role = dbUser.role as "USER" | "ADMIN";
                 session.user.eduVerified = dbUser.eduVerified;
                 return session;
+              } else {
+                console.warn("⚠️ Session callback - user not found in DB:", userId);
               }
             } catch (dbError) {
               console.error("❌ Database error in session callback:", dbError);
@@ -508,9 +522,12 @@ export const authOptions: NextAuthConfig = {
             }
             
             // Fallback to token data if DB query fails or user not found
+            console.log("📝 Session callback - using token fallback");
             session.user.id = userId;
             session.user.role = (token.role as "USER" | "ADMIN") || "USER";
             session.user.eduVerified = (token.eduVerified as boolean) || false;
+          } else {
+            console.warn("⚠️ Session callback - no userId in token");
           }
         } catch (error) {
           console.error("❌ Error in session callback:", error);
@@ -521,6 +538,8 @@ export const authOptions: NextAuthConfig = {
             session.user.eduVerified = (token.eduVerified as boolean) || false;
           }
         }
+      } else {
+        console.warn("⚠️ Session callback - missing token or session.user");
       }
       return session;
     },

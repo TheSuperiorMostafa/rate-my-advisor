@@ -55,7 +55,7 @@ export async function onRequest(context: any) {
       responseHeaders.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie, Set-Cookie');
       responseHeaders.set('Access-Control-Allow-Credentials', 'true');
       
-      // CRITICAL: Fix cookie domain for OAuth PKCE to work across Cloudflare proxy
+      // CRITICAL: Fix cookie domain for OAuth PKCE and session cookies to work across Cloudflare proxy
       // Vercel sets cookies, but they need to work on Cloudflare domain
       const setCookieHeaders = responseHeaders.getSetCookie();
       if (setCookieHeaders && setCookieHeaders.length > 0) {
@@ -64,27 +64,49 @@ export async function onRequest(context: any) {
           ? 'rate-my-advisor.com' 
           : originalHost.split(':')[0];
         
+        // Cloudflare Pages always runs in production (HTTPS)
+        const isProduction = true;
+        
         setCookieHeaders.forEach(cookie => {
           let fixedCookie = cookie;
+          
+          // Check if this is a __Host- prefixed cookie (stricter security, no Domain allowed)
+          const isHostCookie = fixedCookie.trim().startsWith('__Host-');
           
           // Remove ALL existing Domain= settings (including Vercel domain)
           fixedCookie = fixedCookie.replace(/;\s*Domain=[^;]+/gi, '');
           
-          // For custom domain, explicitly set domain to ensure cookies work
-          // This is critical for PKCE code verifier cookie
+          // For custom domain, handle cookies appropriately
           if (customDomain.includes('rate-my-advisor.com')) {
-            // Set domain explicitly for the custom domain
-            // This ensures cookies are accessible when Google redirects back
-            fixedCookie = `${fixedCookie}; Domain=${customDomain}; Path=/`;
-            
-            // Ensure SameSite is set correctly for OAuth
-            if (!fixedCookie.includes('SameSite=')) {
-              fixedCookie = `${fixedCookie}; SameSite=Lax`;
-            }
-            
-            // Ensure Secure is set for HTTPS
-            if (process.env.NODE_ENV === 'production' && !fixedCookie.includes('Secure')) {
-              fixedCookie = `${fixedCookie}; Secure`;
+            // __Host- cookies CANNOT have Domain attribute - they must match exact host
+            // For these, we need to remove Domain and ensure Path=/ and Secure
+            if (isHostCookie) {
+              // Ensure Path=/ (required for __Host- cookies)
+              if (!fixedCookie.includes('Path=/')) {
+                fixedCookie = fixedCookie.replace(/;\s*Path=[^;]+/gi, '');
+                fixedCookie = `${fixedCookie}; Path=/`;
+              }
+              // Ensure Secure (required for __Host- cookies)
+              if (!fixedCookie.includes('Secure')) {
+                fixedCookie = `${fixedCookie}; Secure`;
+              }
+              // Ensure SameSite
+              if (!fixedCookie.includes('SameSite=')) {
+                fixedCookie = `${fixedCookie}; SameSite=Lax`;
+              }
+            } else {
+              // For regular cookies (__Secure- or no prefix), set domain explicitly
+              fixedCookie = `${fixedCookie}; Domain=${customDomain}; Path=/`;
+              
+              // Ensure SameSite is set correctly for OAuth
+              if (!fixedCookie.includes('SameSite=')) {
+                fixedCookie = `${fixedCookie}; SameSite=Lax`;
+              }
+              
+              // Ensure Secure is set for HTTPS (required for __Secure- prefix)
+              if (!fixedCookie.includes('Secure')) {
+                fixedCookie = `${fixedCookie}; Secure`;
+              }
             }
           }
           
