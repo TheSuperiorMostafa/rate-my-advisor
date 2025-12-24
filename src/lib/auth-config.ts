@@ -178,11 +178,20 @@ const customAdapter: Adapter = {
 };
 
 // Validate OAuth configuration
-// Strip quotes if present (some .env files add quotes)
-const googleClientId = (process.env.GOOGLE_CLIENT_ID || "").replace(/^["']|["']$/g, "");
-const googleClientSecret = (process.env.GOOGLE_CLIENT_SECRET || "").replace(/^["']|["']$/g, "");
+// Strip quotes and newlines if present (some .env files add quotes and newlines)
+const googleClientId = (process.env.GOOGLE_CLIENT_ID || "")
+  .replace(/^["']|["']$/g, "")  // Remove surrounding quotes
+  .replace(/\\n/g, "")           // Remove literal \n characters
+  .trim();                      // Remove whitespace
+const googleClientSecret = (process.env.GOOGLE_CLIENT_SECRET || "")
+  .replace(/^["']|["']$/g, "")  // Remove surrounding quotes
+  .replace(/\\n/g, "")          // Remove literal \n characters
+  .trim();                      // Remove whitespace
 // Trim NEXTAUTH_URL to remove any newlines or whitespace
-const nextAuthUrl = (process.env.NEXTAUTH_URL || "").trim();
+const nextAuthUrl = (process.env.NEXTAUTH_URL || "")
+  .replace(/^["']|["']$/g, "")  // Remove surrounding quotes
+  .replace(/\\n/g, "")          // Remove literal \n characters
+  .trim();                      // Remove whitespace
 
 // Log configuration in development for debugging
 if (process.env.NODE_ENV === "development") {
@@ -201,27 +210,53 @@ if (process.env.NODE_ENV === "development") {
 }
 
 if (process.env.NODE_ENV === "production") {
+  console.log("🔍 Google OAuth Configuration Check (Production):");
   if (!googleClientId) {
     console.error("❌ GOOGLE_CLIENT_ID is missing in production!");
+    console.error("   Raw value from env:", process.env.GOOGLE_CLIENT_ID ? `"${process.env.GOOGLE_CLIENT_ID}"` : "undefined");
   } else {
     console.log("✅ GOOGLE_CLIENT_ID is set:", googleClientId.substring(0, 30) + "...");
+    console.log("   Full length:", googleClientId.length, "characters");
     if (!googleClientId.includes(".apps.googleusercontent.com")) {
       console.error("❌ GOOGLE_CLIENT_ID format looks incorrect - should contain '.apps.googleusercontent.com'");
       console.error("   Current value starts with:", googleClientId.substring(0, 30) + "...");
     }
+    // Check for common issues
+    if (googleClientId.includes('"') || googleClientId.includes("'")) {
+      console.error("❌ GOOGLE_CLIENT_ID contains quotes! Remove quotes from Vercel environment variable.");
+    }
   }
   if (!googleClientSecret) {
     console.error("❌ GOOGLE_CLIENT_SECRET is missing in production!");
+    console.error("   Raw value from env:", process.env.GOOGLE_CLIENT_SECRET ? "SET (hidden)" : "undefined");
   } else {
     console.log("✅ GOOGLE_CLIENT_SECRET is set:", googleClientSecret.substring(0, 10) + "...");
+    console.log("   Full length:", googleClientSecret.length, "characters");
     if (!googleClientSecret.startsWith("GOCSPX-")) {
       console.warn("⚠️ GOOGLE_CLIENT_SECRET format looks unusual - should start with 'GOCSPX-'");
+      console.warn("   Current value starts with:", googleClientSecret.substring(0, 10) + "...");
+    }
+    // Check for common issues
+    if (googleClientSecret.includes('"') || googleClientSecret.includes("'")) {
+      console.error("❌ GOOGLE_CLIENT_SECRET contains quotes! Remove quotes from Vercel environment variable.");
     }
   }
   if (!nextAuthUrl) {
     console.error("❌ NEXTAUTH_URL is missing in production!");
   } else {
     console.log("✅ NEXTAUTH_URL:", nextAuthUrl);
+    console.log("   Redirect URI will be:", `${nextAuthUrl}/api/auth/callback/google`);
+    if (nextAuthUrl.endsWith("/")) {
+      console.warn("⚠️ NEXTAUTH_URL has trailing slash - should be removed");
+    }
+  }
+  
+  // Final check
+  if (!googleClientId || !googleClientSecret) {
+    console.error("❌ Google OAuth will NOT work - missing credentials!");
+    console.error("   Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in Vercel Production environment variables.");
+  } else {
+    console.log("✅ Google OAuth provider will be initialized");
   }
 }
 
@@ -380,30 +415,48 @@ export const authOptions: NextAuthConfig = {
   adapter: customAdapter as any,
   secret: nextAuthSecret || "fallback-secret-for-development-only",
   trustHost: true, // Required for Vercel/production deployments
-  debug: process.env.NODE_ENV === "development", // Enable debug logging in development
+  debug: true, // Enable debug logging to help diagnose OAuth issues
   // Explicitly set the base URL for OAuth callbacks when behind proxy
   ...(process.env.NEXTAUTH_URL && {
     basePath: undefined, // Use default /api/auth
   }),
   providers: [
-    GoogleProvider({
-      clientId: googleClientId,
-      clientSecret: googleClientSecret,
-      authorization: {
-        params: {
-          prompt: "consent",
-          access_type: "offline",
-          response_type: "code",
-        },
-      },
-      // Explicitly set redirect URI to ensure it matches Google Console exactly
-      ...(nextAuthUrl && {
-        redirectUri: `${nextAuthUrl}/api/auth/callback/google`,
-      }),
-      // Enable account linking for existing email accounts
-      // This allows Google OAuth to link to existing email-based accounts
-      allowDangerousEmailAccountLinking: true,
-    }),
+    // Only add GoogleProvider if credentials are available
+    ...(googleClientId && googleClientSecret ? [
+      (() => {
+        const redirectUri = nextAuthUrl ? `${nextAuthUrl.replace(/\/$/, "")}/api/auth/callback/google` : undefined;
+        
+        // Log OAuth configuration in production for debugging
+        if (process.env.NODE_ENV === "production") {
+          console.log("🔍 Google OAuth Provider Configuration:");
+          console.log("   Client ID:", googleClientId.substring(0, 30) + "...");
+          console.log("   Client ID full length:", googleClientId.length);
+          console.log("   Client Secret starts with:", googleClientSecret.substring(0, 10) + "...");
+          console.log("   NEXTAUTH_URL:", nextAuthUrl);
+          console.log("   Redirect URI:", redirectUri);
+          console.log("   Expected in Google Console:", redirectUri);
+        }
+        
+        return GoogleProvider({
+          clientId: googleClientId,
+          clientSecret: googleClientSecret,
+          authorization: {
+            params: {
+              prompt: "consent",
+              access_type: "offline",
+              response_type: "code",
+            },
+          },
+          // Explicitly set redirect URI to ensure it matches Google Console exactly
+          ...(redirectUri ? {
+            redirectUri: redirectUri,
+          } : {}),
+          // Enable account linking for existing email accounts
+          // This allows Google OAuth to link to existing email-based accounts
+          allowDangerousEmailAccountLinking: true,
+        });
+      })()
+    ] : []),
     // Use ResendProvider with custom sendVerificationRequest to ensure emails are sent
     // Check at runtime - in Vercel serverless, env vars are available at runtime
     // Call createResendProvider once and use the result
