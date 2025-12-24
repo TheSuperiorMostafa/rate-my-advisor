@@ -190,8 +190,9 @@ if (process.env.NODE_ENV === "production") {
   console.log("   NEXTAUTH_SECRET:", process.env.NEXTAUTH_SECRET ? "✅ SET" : "❌ NOT SET");
 }
 
-// Validate Resend configuration before creating provider
-// Use runtime check - environment variables are available at runtime in Vercel
+// Validate Resend configuration
+// In Vercel serverless, env vars are available at runtime, but we need to check them
+// when the provider is actually used, not at module load
 const getResendApiKey = () => {
   const key = process.env.RESEND_API_KEY?.trim();
   return key || "";
@@ -202,23 +203,128 @@ const getEmailFrom = () => {
   return from || "onboarding@resend.dev";
 };
 
-// Get values at module load for provider initialization
-const resendApiKey = getResendApiKey();
-const emailFrom = getEmailFrom();
-
-// Log at module load (for debugging)
-if (process.env.NODE_ENV === "production") {
-  console.log("🔍 Resend Configuration Check (Module Load):");
-  console.log("   RESEND_API_KEY:", resendApiKey ? `${resendApiKey.substring(0, 10)}...` : "❌ NOT SET");
-  console.log("   EMAIL_FROM:", emailFrom || "❌ NOT SET");
+// Create a function that returns the provider configuration
+// This allows us to check env vars at runtime when providers are initialized
+const createResendProvider = () => {
+  const apiKey = getResendApiKey();
+  const emailFrom = getEmailFrom();
   
-  if (!resendApiKey) {
-    console.error("❌ RESEND_API_KEY is not set! Email authentication will not work.");
-    console.error("   Please set RESEND_API_KEY in your environment variables.");
-  } else {
+  // Log in production to help debug
+  if (process.env.NODE_ENV === "production") {
+    console.log("🔍 ResendProvider Configuration Check (Runtime):");
+    console.log("   RESEND_API_KEY:", apiKey ? `${apiKey.substring(0, 10)}...` : "❌ NOT SET");
+    console.log("   EMAIL_FROM:", emailFrom || "❌ NOT SET");
+    
+    if (!apiKey) {
+      console.error("❌ RESEND_API_KEY is not set! Email authentication will not work.");
+      console.error("   Please set RESEND_API_KEY in your environment variables.");
+      return null;
+    }
     console.log("✅ ResendProvider will be initialized with API key");
   }
-}
+  
+  if (!apiKey) {
+    return null;
+  }
+  
+  return ResendProvider({
+    id: "email",
+    apiKey: apiKey,
+    from: emailFrom,
+    async sendVerificationRequest({ identifier: email, url }) {
+      // Check if Resend API key is configured
+      if (!process.env.RESEND_API_KEY) {
+        const errorMsg = "RESEND_API_KEY is not configured. Please set RESEND_API_KEY in your environment variables.";
+        console.error(`❌ ${errorMsg}`);
+        throw new Error(errorMsg);
+      }
+
+      const { host } = new URL(process.env.NEXTAUTH_URL || "http://localhost:3000");
+      const emailFrom = process.env.EMAIL_FROM || "onboarding@resend.dev";
+      
+      console.log(`📧 Sending magic link to ${email} via Resend`);
+      console.log(`📧 Email configuration:`, {
+        from: emailFrom,
+        nextAuthUrl: process.env.NEXTAUTH_URL,
+        hasApiKey: !!process.env.RESEND_API_KEY,
+      });
+      
+      try {
+        const resend = new Resend(process.env.RESEND_API_KEY);
+        
+        const emailHtml = `
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            </head>
+            <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+              <div style="background: linear-gradient(135deg, #5B2D8B 0%, #7C3AED 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+                <h1 style="color: white; margin: 0; font-size: 24px;">Rate My Advisor</h1>
+              </div>
+              <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
+                <h2 style="color: #1f2937; margin-top: 0;">Sign in to your account</h2>
+                <p style="color: #6b7280;">Click the button below to sign in to Rate My Advisor. This link will expire in 24 hours.</p>
+                <div style="text-align: center; margin: 30px 0;">
+                  <a href="${url}" style="display: inline-block; background: #5B2D8B; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">Sign In</a>
+                </div>
+                <p style="color: #6b7280; font-size: 14px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+                  If you didn't request this email, you can safely ignore it.
+                </p>
+                <p style="color: #9ca3af; font-size: 12px; margin-top: 20px;">
+                  Or copy and paste this link into your browser:<br>
+                  <a href="${url}" style="color: #5B2D8B; word-break: break-all;">${url}</a>
+                </p>
+              </div>
+            </body>
+          </html>
+        `;
+        
+        const emailText = `Sign in to ${host}\n\nClick this link to sign in:\n${url}\n\nThis link will expire in 24 hours.\n\nIf you didn't request this email, you can safely ignore it.`;
+        
+        console.log(`📤 Sending email via Resend to ${email} from ${emailFrom}`);
+        console.log(`🔗 Magic link URL: ${url}`);
+        
+        const result = await resend.emails.send({
+          from: emailFrom,
+          to: email,
+          subject: `Sign in to ${host}`,
+          html: emailHtml,
+          text: emailText,
+        });
+        
+        // Resend API returns { data: { id: string } } on success
+        // or { error: { message: string, name: string } } on error
+        if (result.error) {
+          console.error("❌ Resend API error:", result.error);
+          console.error("   Error details:", JSON.stringify(result.error, null, 2));
+          throw new Error(`Failed to send email via Resend: ${result.error.message || JSON.stringify(result.error)}`);
+        }
+        
+        // Success - Resend returns data with id
+        if (result.data?.id) {
+          console.log(`✅ Magic link sent via Resend to ${email}`);
+          console.log(`   Email ID: ${result.data.id}`);
+          console.log(`   From: ${emailFrom}`);
+          console.log(`   To: ${email}`);
+          console.log(`   Subject: Sign in to ${host}`);
+          console.log(`   View in Resend: https://resend.com/emails/${result.data.id}`);
+        } else {
+          console.warn(`⚠️ Resend sent email but no ID returned for ${email}`);
+          console.warn(`   Full result:`, JSON.stringify(result, null, 2));
+        }
+      } catch (error) {
+        console.error("❌ Resend email error:", error);
+        if (error instanceof Error) {
+          console.error("   Error message:", error.message);
+          console.error("   Error stack:", error.stack);
+        }
+        throw error;
+      }
+    },
+  });
+};
 
 export const authOptions: NextAuthConfig = {
   adapter: customAdapter as any,
@@ -249,130 +355,8 @@ export const authOptions: NextAuthConfig = {
       allowDangerousEmailAccountLinking: true,
     }),
     // Use ResendProvider with custom sendVerificationRequest to ensure emails are sent
-    // Only add ResendProvider if API key is available - prevents initialization errors
-    ...(resendApiKey ? [ResendProvider({
-      id: "email", // Explicitly set ID to "email" so signIn("email") works
-      apiKey: resendApiKey,
-      from: emailFrom,
-      async sendVerificationRequest({ identifier: email, url }) {
-        // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/93991747-0315-454c-82ac-ac2d2829f2a8',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth-config.ts:236',message:'sendVerificationRequest called',data:{email,hasApiKey:!!process.env.RESEND_API_KEY,hasEmailFrom:!!process.env.EMAIL_FROM,nextAuthUrl:process.env.NEXTAUTH_URL},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
-        
-        // Check if Resend API key is configured
-        if (!process.env.RESEND_API_KEY) {
-          const errorMsg = "RESEND_API_KEY is not configured. Please set RESEND_API_KEY in your environment variables.";
-          // #region agent log
-          fetch('http://127.0.0.1:7243/ingest/93991747-0315-454c-82ac-ac2d2829f2a8',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth-config.ts:240',message:'RESEND_API_KEY missing',data:{email},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-          // #endregion
-          console.error(`❌ ${errorMsg}`);
-          throw new Error(errorMsg);
-        }
-
-        const { host } = new URL(process.env.NEXTAUTH_URL || "http://localhost:3000");
-        const emailFrom = process.env.EMAIL_FROM || "onboarding@resend.dev";
-        
-        console.log(`📧 Sending magic link to ${email} via Resend`);
-        console.log(`📧 Email configuration:`, {
-          from: emailFrom,
-          nextAuthUrl: process.env.NEXTAUTH_URL,
-          hasApiKey: !!process.env.RESEND_API_KEY,
-        });
-        
-        try {
-          // #region agent log
-          fetch('http://127.0.0.1:7243/ingest/93991747-0315-454c-82ac-ac2d2829f2a8',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth-config.ts:254',message:'Creating Resend instance',data:{email,emailFrom,apiKeyLength:process.env.RESEND_API_KEY?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-          // #endregion
-          const resend = new Resend(process.env.RESEND_API_KEY);
-          
-          const emailHtml = `
-            <!DOCTYPE html>
-            <html>
-              <head>
-                <meta charset="utf-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              </head>
-              <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-                <div style="background: linear-gradient(135deg, #5B2D8B 0%, #7C3AED 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
-                  <h1 style="color: white; margin: 0; font-size: 24px;">Rate My Advisor</h1>
-                </div>
-                <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
-                  <h2 style="color: #1f2937; margin-top: 0;">Sign in to your account</h2>
-                  <p style="color: #6b7280;">Click the button below to sign in to Rate My Advisor. This link will expire in 24 hours.</p>
-                  <div style="text-align: center; margin: 30px 0;">
-                    <a href="${url}" style="display: inline-block; background: #5B2D8B; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">Sign In</a>
-                  </div>
-                  <p style="color: #6b7280; font-size: 14px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
-                    If you didn't request this email, you can safely ignore it.
-                  </p>
-                  <p style="color: #9ca3af; font-size: 12px; margin-top: 20px;">
-                    Or copy and paste this link into your browser:<br>
-                    <a href="${url}" style="color: #5B2D8B; word-break: break-all;">${url}</a>
-                  </p>
-                </div>
-              </body>
-            </html>
-          `;
-          
-          const emailText = `Sign in to ${host}\n\nClick this link to sign in:\n${url}\n\nThis link will expire in 24 hours.\n\nIf you didn't request this email, you can safely ignore it.`;
-          
-          console.log(`📤 Sending email via Resend to ${email} from ${emailFrom}`);
-          console.log(`🔗 Magic link URL: ${url}`);
-          
-          // #region agent log
-          fetch('http://127.0.0.1:7243/ingest/93991747-0315-454c-82ac-ac2d2829f2a8',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth-config.ts:291',message:'Calling resend.emails.send',data:{email,emailFrom,host},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-          // #endregion
-          const result = await resend.emails.send({
-            from: emailFrom,
-            to: email,
-            subject: `Sign in to ${host}`,
-            html: emailHtml,
-            text: emailText,
-          });
-          
-          // #region agent log
-          fetch('http://127.0.0.1:7243/ingest/93991747-0315-454c-82ac-ac2d2829f2a8',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth-config.ts:300',message:'Resend API response',data:{email,hasError:!!result.error,hasData:!!result.data,errorMessage:result.error?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-          // #endregion
-          
-          // Resend API returns { data: { id: string } } on success
-          // or { error: { message: string, name: string } } on error
-          if (result.error) {
-            // #region agent log
-            fetch('http://127.0.0.1:7243/ingest/93991747-0315-454c-82ac-ac2d2829f2a8',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth-config.ts:304',message:'Resend API error',data:{email,error:result.error,errorMessage:result.error?.message,errorName:result.error?.name},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-            // #endregion
-            console.error("❌ Resend API error:", result.error);
-            console.error("   Error details:", JSON.stringify(result.error, null, 2));
-            throw new Error(`Failed to send email via Resend: ${result.error.message || JSON.stringify(result.error)}`);
-          }
-          
-          // Success - Resend returns data with id
-          if (result.data?.id) {
-            console.log(`✅ Magic link sent via Resend to ${email}`);
-            console.log(`   Email ID: ${result.data.id}`);
-            console.log(`   From: ${emailFrom}`);
-            console.log(`   To: ${email}`);
-            console.log(`   Subject: Sign in to ${host}`);
-            console.log(`   View in Resend: https://resend.com/emails/${result.data.id}`);
-          } else {
-            // This shouldn't happen, but log it
-            console.warn(`⚠️ Resend sent email but no ID returned for ${email}`);
-            console.warn(`   Full result:`, JSON.stringify(result, null, 2));
-          }
-        } catch (error) {
-          // #region agent log
-          fetch('http://127.0.0.1:7243/ingest/93991747-0315-454c-82ac-ac2d2829f2a8',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth-config.ts:320',message:'Resend email catch block',data:{email,errorMessage:error instanceof Error ? error.message : String(error),errorStack:error instanceof Error ? error.stack : undefined,errorType:error?.constructor?.name},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-          // #endregion
-          console.error("❌ Resend email error:", error);
-          // Log detailed error for debugging
-          if (error instanceof Error) {
-            console.error("   Error message:", error.message);
-            console.error("   Error stack:", error.stack);
-          }
-          // Re-throw the error so NextAuth knows it failed
-          throw error;
-        }
-      },
-    })] : []),
+    // Check at runtime - in Vercel serverless, env vars are available at runtime
+    ...(createResendProvider() ? [createResendProvider()!] : []),
   ],
   pages: {
     signIn: "/auth/signin",
