@@ -637,50 +637,73 @@ export const authOptions: NextAuthConfig = {
       }
     },
     async redirect({ url, baseUrl }) {
-      // Get NEXTAUTH_URL and trim it to remove any newlines or whitespace
-      const nextAuthUrlTrimmed = (process.env.NEXTAUTH_URL || "").trim();
-      const redirectBaseUrl = nextAuthUrlTrimmed || baseUrl;
-      
-      // Log for debugging
-      if (process.env.NODE_ENV === "production") {
-        console.log("🔀 Redirect callback:", {
-          url,
-          baseUrl,
-          nextAuthUrl: process.env.NEXTAUTH_URL,
-          nextAuthUrlTrimmed,
-          using: redirectBaseUrl,
-        });
-      }
-      
-      // Ensure redirects stay within the same origin
-      if (url.startsWith("/")) {
-        // Don't redirect to auth pages after successful sign-in
-        if (url.includes("/auth/signin") || url.includes("/auth/signup")) {
-          return `${redirectBaseUrl}/`;
-        }
-        return `${redirectBaseUrl}${url}`;
-      }
-      
       try {
-        const urlObj = new URL(url);
-        // Compare origins (trimmed)
-        const redirectOrigin = redirectBaseUrl.replace(/\/$/, ""); // Remove trailing slash
-        const baseUrlOrigin = baseUrl.replace(/\/$/, ""); // Remove trailing slash
-        const urlOrigin = urlObj.origin;
+        // Get NEXTAUTH_URL and trim it to remove any newlines or whitespace
+        const nextAuthUrlTrimmed = (process.env.NEXTAUTH_URL || "").trim();
+        const redirectBaseUrl = nextAuthUrlTrimmed || baseUrl;
         
-        if (urlOrigin === redirectOrigin || urlOrigin === baseUrlOrigin) {
+        // Log for debugging
+        if (process.env.NODE_ENV === "production") {
+          console.log("🔀 Redirect callback:", {
+            url,
+            baseUrl,
+            nextAuthUrl: process.env.NEXTAUTH_URL,
+            nextAuthUrlTrimmed,
+            using: redirectBaseUrl,
+          });
+        }
+        
+        // Ensure redirects stay within the same origin
+        if (url.startsWith("/")) {
           // Don't redirect to auth pages after successful sign-in
-          if (urlObj.pathname.includes("/auth/signin") || urlObj.pathname.includes("/auth/signup")) {
+          if (url.includes("/auth/signin") || url.includes("/auth/signup")) {
             return `${redirectBaseUrl}/`;
           }
-          return url;
+          return `${redirectBaseUrl}${url}`;
         }
-      } catch (urlError) {
-        // Invalid URL, use baseUrl
-        console.error("❌ Error parsing redirect URL:", urlError);
+        
+        try {
+          const urlObj = new URL(url);
+          // Compare origins (trimmed) - normalize by removing protocol and trailing slashes
+          const normalizeOrigin = (origin: string) => {
+            try {
+              const url = new URL(origin);
+              return url.origin;
+            } catch {
+              // If it's not a full URL, try to extract origin
+              return origin.replace(/^https?:\/\//, "").replace(/\/$/, "");
+            }
+          };
+          
+          const redirectOrigin = normalizeOrigin(redirectBaseUrl);
+          const baseUrlOrigin = normalizeOrigin(baseUrl);
+          const urlOrigin = urlObj.origin;
+          
+          if (urlOrigin === redirectOrigin || urlOrigin === baseUrlOrigin || urlOrigin.includes(redirectOrigin) || urlOrigin.includes(baseUrlOrigin)) {
+            // Don't redirect to auth pages after successful sign-in
+            if (urlObj.pathname.includes("/auth/signin") || urlObj.pathname.includes("/auth/signup")) {
+              return `${redirectBaseUrl}/`;
+            }
+            return url;
+          }
+        } catch (urlError) {
+          // Invalid URL, use baseUrl
+          console.error("❌ Error parsing redirect URL:", urlError);
+          if (urlError instanceof Error) {
+            console.error("   Error message:", urlError.message);
+          }
+        }
+        
+        return redirectBaseUrl;
+      } catch (error) {
+        console.error("❌ Error in redirect callback:", error);
+        if (error instanceof Error) {
+          console.error("   Error message:", error.message);
+          console.error("   Error stack:", error.stack);
+        }
+        // Fallback to baseUrl if anything goes wrong
+        return baseUrl;
       }
-      
-      return redirectBaseUrl;
     },
   },
   session: {
