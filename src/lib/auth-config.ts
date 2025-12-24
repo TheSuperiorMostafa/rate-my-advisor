@@ -830,6 +830,8 @@ export const authOptions: NextAuthConfig = {
       }
     },
     async redirect({ url, baseUrl }) {
+      console.log("🔄 Redirect callback called:", { url, baseUrl });
+      
       // Simplified redirect callback - always return a safe URL
       // Don't throw any errors that could cause "Configuration" error
       try {
@@ -841,9 +843,12 @@ export const authOptions: NextAuthConfig = {
         if (url.startsWith("/")) {
           // Don't redirect to auth pages after successful sign-in
           if (url.includes("/auth/signin") || url.includes("/auth/signup")) {
+            console.log("✅ Redirect callback - redirecting to homepage after auth");
             return `${redirectBaseUrl}/`;
           }
-          return `${redirectBaseUrl}${url}`;
+          const finalUrl = `${redirectBaseUrl}${url}`;
+          console.log("✅ Redirect callback - redirecting to:", finalUrl);
+          return finalUrl;
         }
         
         // If URL is absolute, validate it's from the same origin
@@ -854,8 +859,10 @@ export const authOptions: NextAuthConfig = {
           // If same origin, return the URL (but not auth pages)
           if (urlObj.origin === baseUrlObj.origin) {
             if (urlObj.pathname.includes("/auth/signin") || urlObj.pathname.includes("/auth/signup")) {
+              console.log("✅ Redirect callback - redirecting to homepage (same origin, auth page)");
               return `${baseUrl}/`;
             }
+            console.log("✅ Redirect callback - redirecting to:", url);
             return url;
           }
         } catch {
@@ -863,6 +870,7 @@ export const authOptions: NextAuthConfig = {
         }
         
         // Default: return homepage
+        console.log("✅ Redirect callback - default redirect to homepage");
         return `${redirectBaseUrl}/`;
       } catch (error) {
         // If anything fails, just return the baseUrl homepage
