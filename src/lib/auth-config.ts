@@ -671,7 +671,7 @@ export const authOptions: NextAuthConfig = {
               // Try to find pending signup, but don't fail if table doesn't exist or DB is unavailable
               let pendingSignup = null;
               try {
-                pendingSignup = await prisma.pendingSignup.findUnique({
+                pendingSignup = await (prisma as any).pendingSignup.findUnique({
                   where: { email: user.email },
                 });
               } catch (dbError: any) {
@@ -708,7 +708,7 @@ export const authOptions: NextAuthConfig = {
 
                   // Delete pending signup after successful account creation
                   try {
-                    await prisma.pendingSignup.delete({
+                    await (prisma as any).pendingSignup.delete({
                       where: { id: pendingSignup.id },
                     });
                   } catch (deleteError) {
