@@ -420,46 +420,7 @@ export const authOptions: NextAuthConfig = {
   ...(process.env.NEXTAUTH_URL && {
     basePath: undefined, // Use default /api/auth
   }),
-  // Configure cookies to fix PKCE code verifier issues
-  cookies: {
-    sessionToken: {
-      name: `${process.env.NODE_ENV === "production" ? "__Secure-" : ""}next-auth.session-token`,
-      options: {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        secure: process.env.NODE_ENV === "production",
-      },
-    },
-    callbackUrl: {
-      name: `${process.env.NODE_ENV === "production" ? "__Secure-" : ""}next-auth.callback-url`,
-      options: {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        secure: process.env.NODE_ENV === "production",
-      },
-    },
-    csrfToken: {
-      name: `${process.env.NODE_ENV === "production" ? "__Host-" : ""}next-auth.csrf-token`,
-      options: {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        secure: process.env.NODE_ENV === "production",
-      },
-    },
-    pkceCodeVerifier: {
-      name: `${process.env.NODE_ENV === "production" ? "__Secure-" : ""}next-auth.pkce.code_verifier`,
-      options: {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        secure: process.env.NODE_ENV === "production",
-        maxAge: 60 * 15, // 15 minutes
-      },
-    },
-  },
+  // Let NextAuth handle cookies automatically - custom config was causing PKCE issues
   providers: [
     // Only add GoogleProvider if credentials are available
     ...(googleClientId && googleClientSecret ? [
