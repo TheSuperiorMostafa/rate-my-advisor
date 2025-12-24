@@ -1,15 +1,160 @@
 import type { NextAuthConfig } from "next-auth";
 import { PrismaAdapter } from "@auth/prisma-adapter";
+import type { Adapter } from "next-auth/adapters";
 import GoogleProvider from "next-auth/providers/google";
+import ResendProvider from "next-auth/providers/resend";
 import EmailProvider from "next-auth/providers/email";
-import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "./prisma";
 import { Resend } from "resend";
 
+// Custom adapter wrapper to handle account linking
+const baseAdapter = PrismaAdapter(prisma) as Adapter;
+
+const customAdapter: Adapter = {
+  ...baseAdapter,
+  async getUserByAccount({ providerAccountId, provider }) {
+    // First try default behavior
+    try {
+      return await baseAdapter.getUserByAccount!({ providerAccountId, provider });
+    } catch (error) {
+      // If not found, return null (user might not have this account linked yet)
+      return null;
+    }
+  },
+  async getUserByEmail(email) {
+    // For Google OAuth, we need to be careful about account linking
+    // If a user exists but doesn't have Google account linked, we should still return them
+    // This allows NextAuth to link the account instead of throwing OAuthAccountNotLinked
+    try {
+      return await baseAdapter.getUserByEmail!(email);
+    } catch (error) {
+      return null;
+    }
+  },
+  async createUser(user) {
+    // Check if user with this email already exists
+    if (user.email) {
+      const existingUser = await prisma.user.findUnique({
+        where: { email: user.email },
+      });
+      if (existingUser) {
+        console.log("✅ User already exists with email, returning existing user:", user.email);
+        // Return existing user instead of creating new one
+        // Note: Account linking will be handled by linkAccount method
+        return {
+          id: existingUser.id,
+          email: existingUser.email || "",
+          emailVerified: existingUser.emailVerified,
+          name: existingUser.name,
+          image: existingUser.image,
+        } as any;
+      }
+    }
+    // Otherwise use default adapter behavior
+    return await baseAdapter.createUser!(user);
+  },
+  async linkAccount(account) {
+    try {
+      // First check if account already exists
+      const existingAccount = await prisma.account.findUnique({
+        where: {
+          provider_providerAccountId: {
+            provider: account.provider,
+            providerAccountId: account.providerAccountId,
+          },
+        },
+      });
+      
+      if (existingAccount) {
+        console.log("✅ Account already linked:", account.provider);
+        return existingAccount as any;
+      }
+      
+      // Check if user exists and needs account linking
+      if (account.userId) {
+        const user = await prisma.user.findUnique({
+          where: { id: account.userId },
+          include: {
+            accounts: {
+              where: { provider: account.provider },
+            },
+          },
+        });
+        
+        if (user && user.accounts.length > 0) {
+          // Account already linked to this user
+          return user.accounts[0] as any;
+        }
+        
+        // User exists but account not linked - create the link
+        if (user && user.accounts.length === 0) {
+          console.log("✅ Linking", account.provider, "account to existing user:", user.email);
+          // Generate account ID (required by Prisma schema)
+          const accountId = `${account.provider}_${account.providerAccountId}_${user.id}`;
+          return await prisma.account.create({
+            data: {
+              id: accountId,
+              userId: user.id,
+              type: account.type,
+              provider: account.provider,
+              providerAccountId: account.providerAccountId,
+              refresh_token: typeof account.refresh_token === 'string' ? account.refresh_token : null,
+              access_token: typeof account.access_token === 'string' ? account.access_token : null,
+              expires_at: typeof account.expires_at === 'number' ? account.expires_at : null,
+              token_type: typeof account.token_type === 'string' ? account.token_type : null,
+              scope: typeof account.scope === 'string' ? account.scope : null,
+              id_token: typeof account.id_token === 'string' ? account.id_token : null,
+              session_state: typeof account.session_state === 'string' ? account.session_state : null,
+            },
+          }) as any;
+        }
+      }
+      
+      // Use default adapter to create the account link
+      return await baseAdapter.linkAccount!(account);
+    } catch (error: any) {
+      // If account already exists (unique constraint), return it
+      if (error?.code === "P2002") {
+        const existingAccount = await prisma.account.findUnique({
+          where: {
+            provider_providerAccountId: {
+              provider: account.provider,
+              providerAccountId: account.providerAccountId,
+            },
+          },
+        });
+        if (existingAccount) {
+          console.log("✅ Found existing account after error:", account.provider);
+          return existingAccount as any;
+        }
+      }
+      console.error("❌ Error linking account:", error);
+      throw error;
+    }
+  },
+};
+
 // Validate OAuth configuration
-const googleClientId = process.env.GOOGLE_CLIENT_ID || "";
-const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET || "";
+// Strip quotes if present (some .env files add quotes)
+const googleClientId = (process.env.GOOGLE_CLIENT_ID || "").replace(/^["']|["']$/g, "");
+const googleClientSecret = (process.env.GOOGLE_CLIENT_SECRET || "").replace(/^["']|["']$/g, "");
 const nextAuthUrl = process.env.NEXTAUTH_URL || "";
+
+// Log configuration in development for debugging
+if (process.env.NODE_ENV === "development") {
+  console.log("🔍 OAuth Configuration Check:");
+  console.log("   GOOGLE_CLIENT_ID:", googleClientId ? `${googleClientId.substring(0, 30)}...` : "❌ NOT SET");
+  console.log("   GOOGLE_CLIENT_SECRET:", googleClientSecret ? `${googleClientSecret.substring(0, 10)}...` : "❌ NOT SET");
+  console.log("   NEXTAUTH_URL:", nextAuthUrl || "❌ NOT SET");
+  
+  if (!googleClientId || !googleClientSecret) {
+    console.log("ℹ️  Google OAuth not configured (optional - email magic links work without it)");
+  }
+  
+  if (googleClientSecret && !googleClientSecret.startsWith("GOCSPX-")) {
+    console.warn("⚠️ GOOGLE_CLIENT_SECRET format looks unusual - should start with 'GOCSPX-'");
+  }
+}
 
 if (process.env.NODE_ENV === "production") {
   if (!googleClientId) {
@@ -36,10 +181,29 @@ if (process.env.NODE_ENV === "production") {
   }
 }
 
+// Log environment variable availability at module load time
+if (process.env.NODE_ENV === "production") {
+  console.log("🔍 NextAuth Configuration Check (Production):");
+  console.log("   RESEND_API_KEY:", process.env.RESEND_API_KEY ? `${process.env.RESEND_API_KEY.substring(0, 10)}...` : "❌ NOT SET");
+  console.log("   EMAIL_FROM:", process.env.EMAIL_FROM || "❌ NOT SET");
+  console.log("   NEXTAUTH_URL:", process.env.NEXTAUTH_URL || "❌ NOT SET");
+  console.log("   NEXTAUTH_SECRET:", process.env.NEXTAUTH_SECRET ? "✅ SET" : "❌ NOT SET");
+}
+
+// Validate Resend configuration before creating provider
+const resendApiKey = process.env.RESEND_API_KEY?.trim();
+const emailFrom = (process.env.EMAIL_FROM || "onboarding@resend.dev").trim();
+
+if (!resendApiKey) {
+  console.error("❌ RESEND_API_KEY is not set! Email authentication will not work.");
+  console.error("   Please set RESEND_API_KEY in your environment variables.");
+}
+
 export const authOptions: NextAuthConfig = {
-  adapter: PrismaAdapter(prisma) as any,
+  adapter: customAdapter as any,
   secret: process.env.NEXTAUTH_SECRET,
   trustHost: true, // Required for Vercel/production deployments
+  debug: process.env.NODE_ENV === "development", // Enable debug logging in development
   // Explicitly set the base URL for OAuth callbacks when behind proxy
   ...(process.env.NEXTAUTH_URL && {
     basePath: undefined, // Use default /api/auth
@@ -55,198 +219,121 @@ export const authOptions: NextAuthConfig = {
           response_type: "code",
         },
       },
+      // Explicitly set redirect URI to ensure it matches Google Console exactly
+      ...(nextAuthUrl && {
+        redirectUri: `${nextAuthUrl}/api/auth/callback/google`,
+      }),
+      // Enable account linking for existing email accounts
+      // This allows Google OAuth to link to existing email-based accounts
+      allowDangerousEmailAccountLinking: true,
     }),
-    EmailProvider({
-      // Only set server if Resend is not configured (fallback to SMTP)
-      ...(process.env.RESEND_API_KEY
-        ? {} // No server config - we'll use Resend API directly
-        : {
-            server: {
-              host: process.env.SMTP_HOST || "smtp.resend.com",
-              port: Number(process.env.SMTP_PORT) || 587,
-              auth: {
-                user: process.env.SMTP_USER || "resend",
-                pass: process.env.SMTP_PASSWORD || "",
-              },
-            },
-          }),
-      from: process.env.EMAIL_FROM || "onboarding@resend.dev",
-      // Custom email sending with Resend API (better than SMTP)
-      async sendVerificationRequest({ identifier: email, url, provider }) {
+    // Use ResendProvider with custom sendVerificationRequest to ensure emails are sent
+    // Only add ResendProvider if API key is available
+    ...(resendApiKey ? [ResendProvider({
+      id: "email", // Explicitly set ID to "email" so signIn("email") works
+      apiKey: resendApiKey,
+      from: emailFrom,
+      async sendVerificationRequest({ identifier: email, url }) {
+        // Check if Resend API key is configured
+        if (!process.env.RESEND_API_KEY) {
+          const errorMsg = "RESEND_API_KEY is not configured. Please set RESEND_API_KEY in your environment variables.";
+          console.error(`❌ ${errorMsg}`);
+          throw new Error(errorMsg);
+        }
+
         const { host } = new URL(process.env.NEXTAUTH_URL || "http://localhost:3000");
+        const emailFrom = process.env.EMAIL_FROM || "onboarding@resend.dev";
         
-        console.log(`📧 Sending magic link to ${email}`);
-        
-        // Use Resend API if available (better than SMTP)
-        if (process.env.RESEND_API_KEY) {
-          try {
-            const resend = new Resend(process.env.RESEND_API_KEY);
-            
-            // Use onboarding@resend.dev if domain not verified, otherwise use custom domain
-            const emailFrom = process.env.EMAIL_FROM || "onboarding@resend.dev";
-            
-            // Log which email address is being used
-            console.log(`📧 Email configuration:`, {
-              from: emailFrom,
-              resendApiKeySet: !!process.env.RESEND_API_KEY,
-              nextAuthUrl: process.env.NEXTAUTH_URL,
-            });
-            
-            const emailHtml = `
-              <!DOCTYPE html>
-              <html>
-                <head>
-                  <meta charset="utf-8">
-                  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                </head>
-                <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-                  <div style="background: linear-gradient(135deg, #5B2D8B 0%, #7C3AED 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
-                    <h1 style="color: white; margin: 0; font-size: 24px;">Rate My Advisor</h1>
-                  </div>
-                  <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
-                    <h2 style="color: #1f2937; margin-top: 0;">Sign in to your account</h2>
-                    <p style="color: #6b7280;">Click the button below to sign in to Rate My Advisor. This link will expire in 24 hours.</p>
-                    <div style="text-align: center; margin: 30px 0;">
-                      <a href="${url}" style="display: inline-block; background: #5B2D8B; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">Sign In</a>
-                    </div>
-                    <p style="color: #6b7280; font-size: 14px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
-                      If you didn't request this email, you can safely ignore it.
-                    </p>
-                    <p style="color: #9ca3af; font-size: 12px; margin-top: 20px;">
-                      Or copy and paste this link into your browser:<br>
-                      <a href="${url}" style="color: #5B2D8B; word-break: break-all;">${url}</a>
-                    </p>
-                  </div>
-                </body>
-              </html>
-            `;
-            
-            const emailText = `Sign in to ${host}\n\nClick this link to sign in:\n${url}\n\nThis link will expire in 24 hours.\n\nIf you didn't request this email, you can safely ignore it.`;
-            
-            console.log(`📤 Sending email via Resend to ${email} from ${emailFrom}`);
-            
-            const result = await resend.emails.send({
-              from: emailFrom,
-              to: email,
-              subject: `Sign in to ${host}`,
-              html: emailHtml,
-              text: emailText,
-            });
-            
-            // Resend API returns { data: { id: string } } on success
-            // or { error: { message: string, name: string } } on error
-            if (result.error) {
-              console.error("❌ Resend API error:", result.error);
-              console.error("   Error details:", JSON.stringify(result.error, null, 2));
-              throw new Error(`Failed to send email via Resend: ${result.error.message || JSON.stringify(result.error)}`);
-            }
-            
-            // Success - Resend returns data with id
-            if (result.data?.id) {
-              console.log(`✅ Magic link sent via Resend to ${email}`);
-              console.log(`   Email ID: ${result.data.id}`);
-              console.log(`   From: ${emailFrom}`);
-            } else {
-              // This shouldn't happen, but log it
-              console.warn(`⚠️ Resend sent email but no ID returned for ${email}`);
-            }
-            
-            // Return early - email sent successfully via Resend
-            // NextAuth won't try to send again
-            return;
-          } catch (error) {
-            console.error("❌ Resend email error:", error);
-            // Log detailed error for debugging
-            if (error instanceof Error) {
-              console.error("   Error message:", error.message);
-              console.error("   Error stack:", error.stack);
-            }
-            
-            // If SMTP is configured, let NextAuth try SMTP
-            if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD) {
-              console.log("⚠️ Resend failed, falling back to SMTP");
-              // Don't return - let NextAuth handle SMTP
-            } else {
-              // No fallback - throw a user-friendly error
-              const errorMessage = error instanceof Error ? error.message : "Failed to send email";
-              console.error("❌ No SMTP fallback configured. Email sending failed.");
-              throw new Error(`Email service unavailable: ${errorMessage}. Please contact support.`);
-            }
-          }
-        }
-        
-        // If no RESEND_API_KEY, NextAuth will use SMTP server config above
-        // or its default email sending mechanism
-        console.log(`📧 Using SMTP/default email for ${email}`);
-      },
-    }),
-    CredentialsProvider({
-      name: "Admin Login",
-      credentials: {
-        username: { label: "Username", type: "text" },
-        password: { label: "Password", type: "password" },
-      },
-      async authorize(credentials) {
-        if (!credentials?.username || !credentials?.password) {
-          console.log("❌ Missing credentials");
-          return null;
-        }
-
-        // Check if credentials match admin env vars
-        const adminUsername = (process.env.ADMIN_USERNAME || "admin").trim();
-        const adminPassword = (process.env.ADMIN_PASSWORD || "").trim();
-        const providedUsername = String(credentials.username).trim();
-        const providedPassword = String(credentials.password).trim();
-
-        console.log("🔐 Auth attempt:", {
-          providedUsername,
-          adminUsername,
-          usernameMatch: providedUsername === adminUsername,
-          passwordLength: providedPassword.length,
-          adminPasswordLength: adminPassword.length,
-          passwordMatch: providedPassword === adminPassword,
+        console.log(`📧 Sending magic link to ${email} via Resend`);
+        console.log(`📧 Email configuration:`, {
+          from: emailFrom,
+          nextAuthUrl: process.env.NEXTAUTH_URL,
+          hasApiKey: !!process.env.RESEND_API_KEY,
         });
-
-        if (providedUsername === adminUsername && providedPassword === adminPassword) {
-          // Find or create admin user
-          let user = await prisma.user.findUnique({
-            where: { email: `${adminUsername}@admin.local` },
+        
+        try {
+          const resend = new Resend(process.env.RESEND_API_KEY);
+          
+          const emailHtml = `
+            <!DOCTYPE html>
+            <html>
+              <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              </head>
+              <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+                <div style="background: linear-gradient(135deg, #5B2D8B 0%, #7C3AED 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+                  <h1 style="color: white; margin: 0; font-size: 24px;">Rate My Advisor</h1>
+                </div>
+                <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
+                  <h2 style="color: #1f2937; margin-top: 0;">Sign in to your account</h2>
+                  <p style="color: #6b7280;">Click the button below to sign in to Rate My Advisor. This link will expire in 24 hours.</p>
+                  <div style="text-align: center; margin: 30px 0;">
+                    <a href="${url}" style="display: inline-block; background: #5B2D8B; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">Sign In</a>
+                  </div>
+                  <p style="color: #6b7280; font-size: 14px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+                    If you didn't request this email, you can safely ignore it.
+                  </p>
+                  <p style="color: #9ca3af; font-size: 12px; margin-top: 20px;">
+                    Or copy and paste this link into your browser:<br>
+                    <a href="${url}" style="color: #5B2D8B; word-break: break-all;">${url}</a>
+                  </p>
+                </div>
+              </body>
+            </html>
+          `;
+          
+          const emailText = `Sign in to ${host}\n\nClick this link to sign in:\n${url}\n\nThis link will expire in 24 hours.\n\nIf you didn't request this email, you can safely ignore it.`;
+          
+          console.log(`📤 Sending email via Resend to ${email} from ${emailFrom}`);
+          console.log(`🔗 Magic link URL: ${url}`);
+          
+          const result = await resend.emails.send({
+            from: emailFrom,
+            to: email,
+            subject: `Sign in to ${host}`,
+            html: emailHtml,
+            text: emailText,
           });
-
-          if (!user) {
-            // Create admin user if doesn't exist
-            user = await prisma.user.create({
-              data: {
-                email: `${adminUsername}@admin.local`,
-                name: "Admin",
-                role: "ADMIN",
-                emailVerified: new Date(),
-              },
-            });
-          } else if (user.role !== "ADMIN") {
-            // Update to admin if not already
-            user = await prisma.user.update({
-              where: { id: user.id },
-              data: { role: "ADMIN" },
-            });
+          
+          // Resend API returns { data: { id: string } } on success
+          // or { error: { message: string, name: string } } on error
+          if (result.error) {
+            console.error("❌ Resend API error:", result.error);
+            console.error("   Error details:", JSON.stringify(result.error, null, 2));
+            throw new Error(`Failed to send email via Resend: ${result.error.message || JSON.stringify(result.error)}`);
           }
-
-          return {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            role: user.role as "USER" | "ADMIN",
-            eduVerified: user.eduVerified,
-          };
+          
+          // Success - Resend returns data with id
+          if (result.data?.id) {
+            console.log(`✅ Magic link sent via Resend to ${email}`);
+            console.log(`   Email ID: ${result.data.id}`);
+            console.log(`   From: ${emailFrom}`);
+            console.log(`   To: ${email}`);
+            console.log(`   Subject: Sign in to ${host}`);
+            console.log(`   View in Resend: https://resend.com/emails/${result.data.id}`);
+          } else {
+            // This shouldn't happen, but log it
+            console.warn(`⚠️ Resend sent email but no ID returned for ${email}`);
+            console.warn(`   Full result:`, JSON.stringify(result, null, 2));
+          }
+        } catch (error) {
+          console.error("❌ Resend email error:", error);
+          // Log detailed error for debugging
+          if (error instanceof Error) {
+            console.error("   Error message:", error.message);
+            console.error("   Error stack:", error.stack);
+          }
+          // Re-throw the error so NextAuth knows it failed
+          throw error;
         }
-
-        return null;
       },
-    }),
+    })] : []),
   ],
   pages: {
     signIn: "/auth/signin",
-    verifyRequest: "/auth/verify-email",
+    // Don't redirect to verifyRequest page - stay on sign-in page to show success message
+    // verifyRequest: "/auth/verify-email",
   },
   callbacks: {
     async session({ session, token }) {
@@ -262,6 +349,8 @@ export const authOptions: NextAuthConfig = {
                 id: true,
                 email: true,
                 name: true,
+                firstName: true,
+                lastName: true,
                 role: true,
                 eduVerified: true,
               },
@@ -270,7 +359,10 @@ export const authOptions: NextAuthConfig = {
             if (dbUser) {
               session.user.id = dbUser.id;
               session.user.email = dbUser.email || session.user.email || "";
-              session.user.name = dbUser.name || session.user.name || "";
+              // Use full name if available, otherwise construct from firstName/lastName
+              session.user.name = dbUser.name || (dbUser.firstName && dbUser.lastName 
+                ? `${dbUser.firstName} ${dbUser.lastName}` 
+                : dbUser.email?.split("@")[0] || session.user.name || "");
               session.user.role = dbUser.role as "USER" | "ADMIN";
               session.user.eduVerified = dbUser.eduVerified;
             } else {
@@ -292,9 +384,57 @@ export const authOptions: NextAuthConfig = {
       }
       return session;
     },
-    async jwt({ token, user, account }) {
+    async jwt({ token, user, account, trigger }) {
+      // For email provider, always fetch from DB to get latest data (including updated name from signup)
+      // Also fetch on subsequent requests (when user is not present but token.sub exists)
+      if (account?.provider === "email" || (!user && token.sub && account?.provider !== "google")) {
+        // Fetch from DB to ensure we have the latest user data
+        if (token.sub) {
+          try {
+            const dbUser = await prisma.user.findUnique({
+              where: { id: token.sub },
+              select: {
+                id: true,
+                email: true,
+                name: true,
+                firstName: true,
+                lastName: true,
+                role: true,
+                eduVerified: true,
+              },
+            });
+            
+            if (dbUser) {
+              token.sub = dbUser.id;
+              token.email = dbUser.email || "";
+              // Use full name if available, otherwise construct from firstName/lastName
+              token.name = dbUser.name || (dbUser.firstName && dbUser.lastName 
+                ? `${dbUser.firstName} ${dbUser.lastName}` 
+                : dbUser.email?.split("@")[0] || "");
+              token.role = dbUser.role as "USER" | "ADMIN";
+              token.eduVerified = dbUser.eduVerified;
+              
+              if (account?.provider === "email") {
+                console.log("📧 Email provider JWT callback - updated token with DB data:", {
+                  userId: dbUser.id,
+                  email: dbUser.email,
+                  name: token.name,
+                });
+              }
+            }
+          } catch (error) {
+            console.error("Error fetching user in jwt callback (email):", error);
+          }
+        }
+      }
+      
       // For credentials provider, user is passed directly
       if (user) {
+        console.log("👤 JWT callback - user object present:", {
+          userId: user.id,
+          email: user.email,
+          role: user.role,
+        });
         token.sub = user.id;
         token.email = user.email;
         token.name = user.name;
@@ -355,20 +495,86 @@ export const authOptions: NextAuthConfig = {
           return false;
         }
         
-        // Allow sign in for Google OAuth
-        if (account?.provider === "google") {
+        // Handle Google OAuth account linking
+        // The adapter's createUser and linkAccount methods handle account linking
+        // We just need to ensure the user ID is correct if an existing user is found
+        if (account?.provider === "google" && user?.email) {
+          try {
+            // Check if a user with this email already exists
+            const existingUser = await prisma.user.findUnique({
+              where: { email: user.email },
+              include: {
+                accounts: {
+                  where: { provider: "google" },
+                },
+              },
+            });
+
+            if (existingUser) {
+              // Update user.id to point to existing user so NextAuth uses it
+              user.id = existingUser.id;
+              if (existingUser.accounts.length > 0) {
+                console.log("✅ Google account already linked to existing user:", user.email);
+              } else {
+                console.log("✅ Will link Google account to existing user:", user.email);
+              }
+            }
+          } catch (error: any) {
+            console.error("❌ Error checking existing user:", error);
+            // Don't block sign-in, let adapter handle it
+          }
           return true;
         }
         
         // Allow email magic link
         if (account?.provider === "email") {
+          // Check for pending signup data and update user
+          if (user?.email) {
+            try {
+              const pendingSignup = await prisma.pendingSignup.findUnique({
+                where: { email: user.email },
+              });
+
+              if (pendingSignup) {
+                // Ensure new users are always created as USER (not ADMIN)
+                // Only superiormostafa@gmail.com should be admin
+                const isAdminEmail = user.email === "superiormostafa@gmail.com";
+                
+                // Update user with pending signup data
+                await prisma.user.update({
+                  where: { id: user.id },
+                  data: {
+                    firstName: pendingSignup.firstName,
+                    lastName: pendingSignup.lastName,
+                    name: `${pendingSignup.firstName} ${pendingSignup.lastName}`,
+                    birthday: pendingSignup.birthday,
+                    universityId: pendingSignup.universityId || null,
+                    fieldOfStudy: pendingSignup.fieldOfStudy || null,
+                    emailVerified: new Date(),
+                    // Only set role to ADMIN if it's the admin email
+                    role: isAdminEmail ? "ADMIN" : "USER",
+                  },
+                });
+
+                // Delete pending signup after successful account creation
+                await prisma.pendingSignup.delete({
+                  where: { id: pendingSignup.id },
+                });
+
+                console.log("✅ User account created with signup data:", {
+                  email: user.email,
+                  firstName: pendingSignup.firstName,
+                  lastName: pendingSignup.lastName,
+                });
+              }
+            } catch (error) {
+              console.error("❌ Error updating user with pending signup data:", error);
+              // Don't block sign-in if this fails
+            }
+          }
           return true;
         }
         
-        // Allow credentials (admin login)
-        if (account?.provider === "credentials") {
-          return true;
-        }
         
         return true;
       } catch (error) {
@@ -377,11 +583,13 @@ export const authOptions: NextAuthConfig = {
       }
     },
     async redirect({ url, baseUrl }) {
-      // When behind Cloudflare proxy, always use NEXTAUTH_URL for OAuth callbacks
-      // This ensures OAuth redirects go to the correct domain (Cloudflare, not Vercel)
-      const redirectBaseUrl = process.env.NEXTAUTH_URL || baseUrl;
+      // Use NEXTAUTH_URL if set, otherwise use baseUrl
+      const redirectBaseUrl = nextAuthUrl || baseUrl;
       
-      // Log for debugging
+      // Log for debugging in development
+      if (process.env.NODE_ENV === "development") {
+        console.log("🔍 Redirect callback:", { url, baseUrl, redirectBaseUrl, nextAuthUrl });
+      }
       if (process.env.NODE_ENV === "production") {
         console.log("🔀 Redirect callback:", {
           url,
@@ -392,11 +600,21 @@ export const authOptions: NextAuthConfig = {
       }
       
       // Ensure redirects stay within the same origin
-      if (url.startsWith("/")) return `${redirectBaseUrl}${url}`;
+      if (url.startsWith("/")) {
+        // Don't redirect to auth pages after successful sign-in
+        if (url.includes("/auth/signin") || url.includes("/auth/signup")) {
+          return `${redirectBaseUrl}/`;
+        }
+        return `${redirectBaseUrl}${url}`;
+      }
       
       try {
         const urlObj = new URL(url);
         if (urlObj.origin === redirectBaseUrl || urlObj.origin === baseUrl) {
+          // Don't redirect to auth pages after successful sign-in
+          if (urlObj.pathname.includes("/auth/signin") || urlObj.pathname.includes("/auth/signup")) {
+            return `${redirectBaseUrl}/`;
+          }
           return url;
         }
       } catch {
