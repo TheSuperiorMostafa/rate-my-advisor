@@ -55,8 +55,8 @@ export async function onRequest(context: any) {
       responseHeaders.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cookie, Set-Cookie');
       responseHeaders.set('Access-Control-Allow-Credentials', 'true');
       
-      // Fix cookie domain for OAuth - ensure cookies work across Cloudflare proxy
-      // Cookies set by Vercel need to be accessible from Cloudflare domain
+      // CRITICAL: Fix cookie domain for OAuth PKCE to work across Cloudflare proxy
+      // Vercel sets cookies, but they need to work on Cloudflare domain
       const setCookieHeaders = responseHeaders.getSetCookie();
       if (setCookieHeaders && setCookieHeaders.length > 0) {
         responseHeaders.delete('Set-Cookie');
@@ -67,18 +67,26 @@ export async function onRequest(context: any) {
         setCookieHeaders.forEach(cookie => {
           let fixedCookie = cookie;
           
-          // Remove any existing Domain= setting
+          // Remove ALL existing Domain= settings (including Vercel domain)
           fixedCookie = fixedCookie.replace(/;\s*Domain=[^;]+/gi, '');
           
-          // Remove any Vercel domain references
-          fixedCookie = fixedCookie.replace(/Domain=rate-my-advisor[^;]+/gi, '');
-          
-          // Add correct domain for custom domain
+          // For custom domain, explicitly set domain to ensure cookies work
+          // This is critical for PKCE code verifier cookie
           if (customDomain.includes('rate-my-advisor.com')) {
-            // For custom domain, set domain explicitly
-            fixedCookie = `${fixedCookie}; Domain=${customDomain}`;
+            // Set domain explicitly for the custom domain
+            // This ensures cookies are accessible when Google redirects back
+            fixedCookie = `${fixedCookie}; Domain=${customDomain}; Path=/`;
+            
+            // Ensure SameSite is set correctly for OAuth
+            if (!fixedCookie.includes('SameSite=')) {
+              fixedCookie = `${fixedCookie}; SameSite=Lax`;
+            }
+            
+            // Ensure Secure is set for HTTPS
+            if (process.env.NODE_ENV === 'production' && !fixedCookie.includes('Secure')) {
+              fixedCookie = `${fixedCookie}; Secure`;
+            }
           }
-          // If not custom domain, let it default (no Domain= means request domain)
           
           responseHeaders.append('Set-Cookie', fixedCookie);
         });

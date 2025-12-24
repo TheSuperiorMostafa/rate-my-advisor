@@ -420,9 +420,11 @@ export const authOptions: NextAuthConfig = {
   ...(process.env.NEXTAUTH_URL && {
     basePath: undefined, // Use default /api/auth
   }),
-  // Configure cookies with proper domain for Cloudflare proxy setup
-  // The cookie domain must match the custom domain, not Vercel domain
+  // Configure cookies - don't set domain so cookies work across proxy
+  // Cloudflare middleware will fix the domain in Set-Cookie headers
   useSecureCookies: process.env.NODE_ENV === "production",
+  // Don't set cookie domain - let it default to request domain
+  // This allows cookies to work across Cloudflare proxy
   providers: [
     // Only add GoogleProvider if credentials are available
     ...(googleClientId && googleClientSecret ? [
