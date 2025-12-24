@@ -1,86 +1,69 @@
-# How to Check Vercel Logs for Email Authentication Errors
+# How to Check Vercel Logs for OAuth Errors
 
-## The Error You're Seeing
+## Quick Method: Vercel Dashboard
 
-The Vercel logs show an error in `sendVerificationRequest` but the error message is cut off. We need to see the full error to fix it.
+1. **Go to your deployments:**
+   - https://vercel.com/hestyas-projects/rate-my-advisor/deployments
 
-## How to View Full Logs
+2. **Click on the latest deployment** (the one that just failed)
 
-### Option 1: Vercel Dashboard (Easiest)
+3. **Click the "Functions" tab** at the top
 
-1. **Go to Vercel Dashboard**
-   - Visit: https://vercel.com/hestyas-projects/rate-my-advisor
+4. **Look for errors:**
+   - Errors will show in **red**
+   - Look for functions like `/api/auth/[...nextauth]` or `/api/auth/callback/google`
+   - Click on any function to see detailed logs
 
-2. **Click "Logs" tab** (or go to: https://vercel.com/hestyas-projects/rate-my-advisor/logs)
+5. **Check the logs for:**
+   - `❌` symbols (error markers)
+   - `Error:` messages
+   - Stack traces
+   - Database connection errors
+   - OAuth callback errors
 
-3. **Filter by Function**
-   - Look for logs from `/api/auth/signin/email`
-   - Or search for: `sendVerificationRequest`
+## Common OAuth Errors After Redirect
 
-4. **Look for Error Messages**
-   - Search for: `❌` or `Error` or `Failed`
-   - The full error message should be there
+### Error: "Database connection failed"
+- **Fix:** Check `DATABASE_URL` environment variable in Vercel
 
-### Option 2: Vercel CLI
+### Error: "User creation failed"
+- **Fix:** Check database schema matches Prisma schema
+
+### Error: "Session creation failed"
+- **Fix:** Check `NEXTAUTH_SECRET` is set
+
+### Error: "Redirect callback failed"
+- **Fix:** Check `NEXTAUTH_URL` matches your domain
+
+## Using Vercel CLI
 
 ```bash
-# Get latest deployment ID
-vercel ls
+# Follow logs in real-time
+vercel logs --follow
 
-# View logs for that deployment
-vercel logs <deployment-url>
+# Filter for errors only
+vercel logs --follow | grep -i error
+
+# Filter for OAuth-related logs
+vercel logs --follow | grep -i "oauth\|auth\|signin"
 ```
 
 ## What to Look For
 
-After the new deployment (with logging), you should see:
+After OAuth redirect, check for these log messages:
 
-1. **Configuration Check** (at startup):
-   ```
-   🔍 NextAuth Configuration Check (Production):
-      RESEND_API_KEY: re_8TTuJcos... ✅ or ❌ NOT SET
-      EMAIL_FROM: noreply@rate-my-advisor.com ✅ or ❌ NOT SET
-   ```
-
-2. **When Email is Sent**:
-   ```
-   📧 Sending magic link to user@example.com via Resend
-   📧 Email configuration: { from: '...', nextAuthUrl: '...', hasApiKey: true }
-   ```
-
-3. **If There's an Error**:
-   ```
-   ❌ Resend email error: [error message]
-      Error message: [detailed message]
-      Error stack: [stack trace]
-   ```
-
-## Common Issues Based on Logs
-
-### If you see "RESEND_API_KEY: ❌ NOT SET"
-- **Problem**: Environment variable not available at runtime
-- **Fix**: 
-  1. Go to Vercel → Settings → Environment Variables
-  2. Verify `RESEND_API_KEY` is set for **Production**
-  3. **Redeploy** after adding/updating
-
-### If you see "Resend API error"
-- **Problem**: Resend API is rejecting the request
-- **Check**:
-  - API key is valid (not revoked)
-  - `EMAIL_FROM` domain is verified in Resend
-  - API key has correct permissions
-
-### If you see "Failed to send email via Resend"
-- **Problem**: Network or API issue
-- **Check**: Resend dashboard for API status
+1. **✅ Sign in attempt:** - Should show user email and provider
+2. **❌ Sign in error:** - This is where the error is happening
+3. **❌ Database error:** - Database connection or query issues
+4. **❌ OAuth error:** - OAuth-specific errors
+5. **❌ Error in session callback:** - Session creation issues
+6. **❌ Error in jwt callback:** - Token creation issues
 
 ## Next Steps
 
-1. **Wait for new deployment** (triggered by the push)
-2. **Check Vercel logs** using the steps above
-3. **Look for the detailed error message**
-4. **Share the full error** so we can fix it
+Once you find the error in the logs:
 
-The new logging will show exactly what's happening!
-
+1. **Copy the error message** and stack trace
+2. **Check the specific function** that's failing
+3. **Look for environment variable issues**
+4. **Check database connectivity**

@@ -636,6 +636,7 @@ export const authOptions: NextAuthConfig = {
         // We just need to ensure the user ID is correct if an existing user is found
         if (account?.provider === "google" && user?.email) {
           try {
+            console.log("🔍 Checking for existing user with email:", user.email);
             // Check if a user with this email already exists
             const existingUser = await prisma.user.findUnique({
               where: { email: user.email },
@@ -654,9 +655,14 @@ export const authOptions: NextAuthConfig = {
               } else {
                 console.log("✅ Will link Google account to existing user:", user.email);
               }
+            } else {
+              console.log("✅ New user, will be created by adapter");
             }
           } catch (error: any) {
             console.error("❌ Error checking existing user:", error);
+            console.error("   Error message:", error?.message);
+            console.error("   Error code:", error?.code);
+            console.error("   Error stack:", error?.stack);
             // Don't block sign-in, let adapter handle it
           }
           return true;
