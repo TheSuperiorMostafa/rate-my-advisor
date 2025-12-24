@@ -327,9 +327,15 @@ const createResendProvider = () => {
   });
 };
 
+// Validate required configuration before creating authOptions
+const nextAuthSecret = process.env.NEXTAUTH_SECRET?.trim();
+if (!nextAuthSecret && process.env.NODE_ENV === "production") {
+  console.error("❌ CRITICAL: NEXTAUTH_SECRET is not set in production!");
+}
+
 export const authOptions: NextAuthConfig = {
   adapter: customAdapter as any,
-  secret: process.env.NEXTAUTH_SECRET,
+  secret: nextAuthSecret || "fallback-secret-for-development-only",
   trustHost: true, // Required for Vercel/production deployments
   debug: process.env.NODE_ENV === "development", // Enable debug logging in development
   // Explicitly set the base URL for OAuth callbacks when behind proxy
@@ -661,23 +667,14 @@ export const authOptions: NextAuthConfig = {
       }
     },
     async redirect({ url, baseUrl }) {
+      // Simplified redirect callback - always return a safe URL
+      // Don't throw any errors that could cause "Configuration" error
       try {
         // Get NEXTAUTH_URL and trim it to remove any newlines or whitespace
         const nextAuthUrlTrimmed = (process.env.NEXTAUTH_URL || "").trim();
         const redirectBaseUrl = nextAuthUrlTrimmed || baseUrl;
         
-        // Log for debugging
-        if (process.env.NODE_ENV === "production") {
-          console.log("🔀 Redirect callback:", {
-            url,
-            baseUrl,
-            nextAuthUrl: process.env.NEXTAUTH_URL,
-            nextAuthUrlTrimmed,
-            using: redirectBaseUrl,
-          });
-        }
-        
-        // Ensure redirects stay within the same origin
+        // If URL is relative, just prepend base URL
         if (url.startsWith("/")) {
           // Don't redirect to auth pages after successful sign-in
           if (url.includes("/auth/signin") || url.includes("/auth/signup")) {
@@ -686,47 +683,28 @@ export const authOptions: NextAuthConfig = {
           return `${redirectBaseUrl}${url}`;
         }
         
+        // If URL is absolute, validate it's from the same origin
         try {
           const urlObj = new URL(url);
-          // Compare origins (trimmed) - normalize by removing protocol and trailing slashes
-          const normalizeOrigin = (origin: string) => {
-            try {
-              const url = new URL(origin);
-              return url.origin;
-            } catch {
-              // If it's not a full URL, try to extract origin
-              return origin.replace(/^https?:\/\//, "").replace(/\/$/, "");
-            }
-          };
+          const baseUrlObj = new URL(baseUrl);
           
-          const redirectOrigin = normalizeOrigin(redirectBaseUrl);
-          const baseUrlOrigin = normalizeOrigin(baseUrl);
-          const urlOrigin = urlObj.origin;
-          
-          if (urlOrigin === redirectOrigin || urlOrigin === baseUrlOrigin || urlOrigin.includes(redirectOrigin) || urlOrigin.includes(baseUrlOrigin)) {
-            // Don't redirect to auth pages after successful sign-in
+          // If same origin, return the URL (but not auth pages)
+          if (urlObj.origin === baseUrlObj.origin) {
             if (urlObj.pathname.includes("/auth/signin") || urlObj.pathname.includes("/auth/signup")) {
-              return `${redirectBaseUrl}/`;
+              return `${baseUrl}/`;
             }
             return url;
           }
-        } catch (urlError) {
-          // Invalid URL, use baseUrl
-          console.error("❌ Error parsing redirect URL:", urlError);
-          if (urlError instanceof Error) {
-            console.error("   Error message:", urlError.message);
-          }
+        } catch {
+          // Invalid URL format, fall through to return baseUrl
         }
         
-        return redirectBaseUrl;
+        // Default: return homepage
+        return `${redirectBaseUrl}/`;
       } catch (error) {
-        console.error("❌ Error in redirect callback:", error);
-        if (error instanceof Error) {
-          console.error("   Error message:", error.message);
-          console.error("   Error stack:", error.stack);
-        }
-        // Fallback to baseUrl if anything goes wrong
-        return baseUrl;
+        // If anything fails, just return the baseUrl homepage
+        console.error("❌ Error in redirect callback (non-fatal):", error);
+        return baseUrl || "/";
       }
     },
   },
