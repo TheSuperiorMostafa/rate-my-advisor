@@ -560,46 +560,73 @@ export const authOptions: NextAuthConfig = {
       return session;
     },
     async jwt({ token, user, account, trigger }) {
-      // For email provider, always fetch from DB to get latest data (including updated name from signup)
-      // Also fetch on subsequent requests (when user is not present but token.sub exists)
+      console.log("🔄 JWT callback called:", {
+        hasUser: !!user,
+        hasAccount: !!account,
+        provider: account?.provider,
+        hasTokenSub: !!token.sub,
+        trigger,
+      });
+
+      // For Google OAuth, when user is present (first time login)
+      if (user && account?.provider === "google") {
+        console.log("✅ Google OAuth - setting token from user object:", {
+          userId: user.id,
+          email: user.email,
+          name: user.name,
+        });
+        token.sub = user.id;
+        token.email = user.email || "";
+        token.name = user.name || "";
+        token.role = (user as any).role || "USER";
+        token.eduVerified = (user as any).eduVerified || false;
+        
+        // Also fetch from DB to get full user data
+        try {
+          const dbUser = await prisma.user.findUnique({
+            where: { id: user.id },
+          });
+          if (dbUser) {
+            token.role = dbUser.role as "USER" | "ADMIN";
+            token.eduVerified = dbUser.eduVerified;
+            const firstName = (dbUser as any).firstName;
+            const lastName = (dbUser as any).lastName;
+            if (firstName && lastName && !token.name) {
+              token.name = `${firstName} ${lastName}`;
+            }
+          }
+        } catch (error) {
+          console.error("❌ Error fetching user in JWT callback:", error);
+        }
+        return token;
+      }
+
+      // For email provider, always fetch from DB to get latest data
       if (account?.provider === "email" || (!user && token.sub && account?.provider !== "google")) {
-        // Fetch from DB to ensure we have the latest user data
-        // But don't fail if database is unavailable
         if (token.sub) {
           try {
-            try {
-              const dbUser = await prisma.user.findUnique({
-                where: { id: token.sub },
-              });
+            const dbUser = await prisma.user.findUnique({
+              where: { id: token.sub },
+            });
+            
+            if (dbUser) {
+              token.sub = dbUser.id;
+              token.email = dbUser.email || "";
+              const firstName = (dbUser as any).firstName;
+              const lastName = (dbUser as any).lastName;
+              token.name = dbUser.name || (firstName && lastName 
+                ? `${firstName} ${lastName}` 
+                : dbUser.email?.split("@")[0] || "");
+              token.role = dbUser.role as "USER" | "ADMIN";
+              token.eduVerified = dbUser.eduVerified;
               
-              if (dbUser) {
-                token.sub = dbUser.id;
-                token.email = dbUser.email || "";
-                // Use full name if available, otherwise use email prefix
-                const firstName = (dbUser as any).firstName;
-                const lastName = (dbUser as any).lastName;
-                token.name = dbUser.name || (firstName && lastName 
-                  ? `${firstName} ${lastName}` 
-                  : dbUser.email?.split("@")[0] || "");
-                token.role = dbUser.role as "USER" | "ADMIN";
-                token.eduVerified = dbUser.eduVerified;
-                
-                if (account?.provider === "email") {
-                  console.log("📧 Email provider JWT callback - updated token with DB data:", {
-                    userId: dbUser.id,
-                    email: dbUser.email,
-                    name: token.name,
-                  });
-                }
-                return token;
+              if (account?.provider === "email") {
+                console.log("📧 Email provider JWT callback - updated token with DB data");
               }
-            } catch (dbError) {
-              console.error("❌ Database error in jwt callback:", dbError);
-              // Continue to return token as-is
+              return token;
             }
-          } catch (error) {
-            console.error("Error in jwt callback (email):", error);
-            // Return token as-is if anything fails
+          } catch (dbError) {
+            console.error("❌ Database error in jwt callback:", dbError);
           }
         }
       }
@@ -609,37 +636,37 @@ export const authOptions: NextAuthConfig = {
         console.log("👤 JWT callback - user object present:", {
           userId: user.id,
           email: user.email,
-          role: user.role,
         });
         token.sub = user.id;
-        token.email = user.email;
-        token.name = user.name;
-        token.role = user.role;
-        token.eduVerified = user.eduVerified;
-      } else if (account && account.provider === "google" && account.providerAccountId) {
-        // For Google OAuth, fetch user from DB
+        token.email = user.email || "";
+        token.name = user.name || "";
+        token.role = (user as any).role || "USER";
+        token.eduVerified = (user as any).eduVerified || false;
+        return token;
+      }
+
+      // For subsequent requests with Google OAuth (when user is not present but token.sub exists)
+      if (!user && token.sub && account?.provider === "google") {
+        console.log("🔄 Google OAuth - fetching user from DB for token.sub:", token.sub);
         try {
-          const accountRecord = await prisma.account.findUnique({
-            where: {
-              provider_providerAccountId: {
-                provider: "google",
-                providerAccountId: account.providerAccountId,
-              },
-            },
-            include: { user: true },
+          const dbUser = await prisma.user.findUnique({
+            where: { id: token.sub },
           });
-          if (accountRecord?.user) {
-            token.sub = accountRecord.user.id;
-            token.email = accountRecord.user.email || "";
-            token.name = accountRecord.user.name || "";
-            token.role = accountRecord.user.role as "USER" | "ADMIN";
-            token.eduVerified = accountRecord.user.eduVerified;
+          if (dbUser) {
+            token.email = dbUser.email || "";
+            const firstName = (dbUser as any).firstName;
+            const lastName = (dbUser as any).lastName;
+            token.name = dbUser.name || (firstName && lastName 
+              ? `${firstName} ${lastName}` 
+              : dbUser.email?.split("@")[0] || "");
+            token.role = dbUser.role as "USER" | "ADMIN";
+            token.eduVerified = dbUser.eduVerified;
           }
         } catch (error) {
-          console.error("Error fetching user in jwt callback:", error);
-          // Continue with token as-is if DB query fails
+          console.error("❌ Error fetching user in jwt callback:", error);
         }
       }
+
       return token;
     },
     async signIn({ user, account, profile }) {
