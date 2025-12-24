@@ -486,12 +486,25 @@ export const authOptions: NextAuthConfig = {
                   id: true,
                   email: true,
                   name: true,
-                  firstName: true,
-                  lastName: true,
                   role: true,
                   eduVerified: true,
                 },
-              });
+              }) as { id: string; email: string | null; name: string | null; firstName?: string | null; lastName?: string | null; role: string; eduVerified: boolean } | null;
+              
+              // Fetch firstName and lastName separately if needed
+              if (dbUser) {
+                const fullUser = await prisma.user.findUnique({
+                  where: { id: userId },
+                  select: {
+                    firstName: true,
+                    lastName: true,
+                  },
+                });
+                if (fullUser) {
+                  (dbUser as any).firstName = fullUser.firstName;
+                  (dbUser as any).lastName = fullUser.lastName;
+                }
+              }
 
               if (dbUser) {
                 session.user.id = dbUser.id;
@@ -541,12 +554,25 @@ export const authOptions: NextAuthConfig = {
                   id: true,
                   email: true,
                   name: true,
-                  firstName: true,
-                  lastName: true,
                   role: true,
                   eduVerified: true,
                 },
-              });
+              }) as { id: string; email: string | null; name: string | null; firstName?: string | null; lastName?: string | null; role: string; eduVerified: boolean } | null;
+              
+              // Fetch firstName and lastName separately if needed
+              if (dbUser) {
+                const fullUser = await prisma.user.findUnique({
+                  where: { id: token.sub },
+                  select: {
+                    firstName: true,
+                    lastName: true,
+                  },
+                });
+                if (fullUser) {
+                  (dbUser as any).firstName = fullUser.firstName;
+                  (dbUser as any).lastName = fullUser.lastName;
+                }
+              }
               
               if (dbUser) {
                 token.sub = dbUser.id;
